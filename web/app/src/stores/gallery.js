@@ -15,7 +15,6 @@ export const useGalleryStore = defineStore('gallery', () => {
       const result = id == null
         ? await api.getAlbumRoot(page, pageSize)
         : await api.getAlbumById(id, page, pageSize)
-      console.log('[gallery] fetchAlbum response', JSON.stringify(result, null, 2))
       currentAlbum.value = result
     } catch (e) {
       error.value = e.message || 'Failed to load album'

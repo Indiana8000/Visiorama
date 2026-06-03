@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+  <rect width="240" height="240" fill="#2e2e2e"/>
+  <rect x="60" y="70" width="120" height="90" rx="6" fill="none" stroke="#555" stroke-width="3"/>
+  <circle cx="90" cy="100" r="10" fill="#555"/>
+  <polyline points="60,140 95,105 125,130 155,100 180,140" fill="none" stroke="#555" stroke-width="3" stroke-linejoin="round"/>
+  <text x="120" y="185" font-family="system-ui,sans-serif" font-size="13" fill="#666" text-anchor="middle">preview unavailable</text>
+</svg>

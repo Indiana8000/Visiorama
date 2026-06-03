@@ -29,5 +29,8 @@ func NewRouter(cfg *app.Config, store *index.Store) http.Handler {
 	hh := &healthHandler{cfg: cfg, store: store}
 	mux.HandleFunc("GET /api/health", hh.health)
 
+	// SPA fallback — serves embedded Vue dist for all non-API paths
+	mux.Handle("/", newSPAHandler())
+
 	return mux
 }

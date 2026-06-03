@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 	"log/slog"
-	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -70,17 +69,17 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 		cachePath, err = thumbs.Generate(absPath, h.cfg.Thumbnails.CacheDir, size)
 	case "video":
 		if !thumbs.FFmpegAvailable() {
-			http.Error(w, "ffmpeg not available", http.StatusNotImplemented)
+			servePlaceholder(w)
 			return
 		}
 		cachePath, err = thumbs.GenerateVideoPoster(absPath, h.cfg.Thumbnails.CacheDir, size)
 	default:
-		http.Error(w, "unsupported media type", http.StatusNotImplemented)
+		servePlaceholder(w)
 		return
 	}
 	if err != nil {
-		slog.Warn("thumbnail generation failed", "id", id, "err", err)
-		http.Error(w, "thumbnail generation failed", http.StatusInternalServerError)
+		slog.Warn("thumbnail generation failed, serving placeholder", "id", id, "err", err)
+		servePlaceholder(w)
 		return
 	}
 
@@ -124,7 +123,7 @@ func (h *mediaHandler) stream(w http.ResponseWriter, r *http.Request) {
 
 	ct := m.MimeType
 	if ct == "" {
-		ct = mime.TypeByExtension(fmt.Sprintf(".%s", m.Extension))
+		ct = util.TypeByExtension(fmt.Sprintf(".%s", m.Extension))
 	}
 	if ct == "" {
 		ct = "application/octet-stream"
@@ -136,6 +135,13 @@ func (h *mediaHandler) stream(w http.ResponseWriter, r *http.Request) {
 		modTime = info.ModTime()
 	}
 	http.ServeContent(w, r, m.Filename, modTime, f)
+}
+
+func servePlaceholder(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(thumbs.PlaceholderSVG)
 }
 
 func parseMediaID(w http.ResponseWriter, r *http.Request) (int64, bool) {

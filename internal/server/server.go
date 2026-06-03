@@ -14,10 +14,12 @@ import (
 	"github.com/USERNAME/visiorama/internal/app"
 	"github.com/USERNAME/visiorama/internal/index"
 	"github.com/USERNAME/visiorama/internal/observability"
+	"github.com/USERNAME/visiorama/internal/util"
 )
 
 func Run(cfg *app.Config) error {
 	observability.SetupLogging()
+	util.RegisterMIMETypes()
 
 	store, err := index.Open(cfg.Database.SQLitePath)
 	if err != nil {

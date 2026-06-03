@@ -22,6 +22,7 @@
         <div class="lb-content">
           <img
             v-if="media.type === 'image'"
+            :key="'img-' + media.id"
             :src="streamSrc"
             :alt="media.filename"
             class="lb-img"
@@ -29,6 +30,7 @@
           />
           <video
             v-else-if="media.type === 'video'"
+            :key="'vid-' + media.id"
             :src="streamSrc"
             :poster="thumbSrc"
             controls
@@ -106,13 +108,14 @@ const store = useGalleryStore()
 
 const BASE = import.meta.env.VITE_API_BASE || ''
 
-const mediaId = computed(() => parseInt(props.id, 10))
+// Use route.params directly — always in sync, no prop-update race
+const mediaId = computed(() => parseInt(route.params.id, 10))
 const media = computed(() => store.currentMedia)
 
 const streamSrc = computed(() => media.value ? api.streamUrl(media.value.id) : '')
-const thumbSrc = computed(() => media.value ? api.thumbnailUrl(media.value.id, 480) : '')
+const thumbSrc  = computed(() => media.value ? api.thumbnailUrl(media.value.id, 480) : '')
 
-// Sibling navigation — available if the parent album is still loaded in store
+// Sibling navigation — load parent album if not already in store
 const siblings = computed(() => store.currentAlbum?.media ?? [])
 const siblingIndex = computed(() => siblings.value.findIndex(m => m.id === mediaId.value))
 const prevMedia = computed(() => siblingIndex.value > 0 ? siblings.value[siblingIndex.value - 1] : null)
@@ -140,8 +143,7 @@ function formatDate(iso) {
 function formatSize(bytes) {
   if (!bytes) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']
-  let v = bytes
-  let i = 0
+  let v = bytes, i = 0
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
   return `${v.toFixed(1)} ${units[i]}`
 }
@@ -155,12 +157,16 @@ function formatDuration(ms) {
   return `${s}s`
 }
 
-function load() {
-  store.fetchMediaMetadata(mediaId.value)
+async function load(id) {
+  await store.fetchMediaMetadata(id)
+  // Load parent album for sibling nav if not already loaded or stale
+  if (store.currentMedia && store.currentAlbum?.album?.id !== store.currentMedia.albumId) {
+    store.fetchAlbum(store.currentMedia.albumId, 1, 500)
+  }
 }
 
-onMounted(() => load())
-watch(() => route.params.id, () => load())
+onMounted(() => load(mediaId.value))
+watch(mediaId, (id) => load(id))
 </script>
 
 <style scoped>
