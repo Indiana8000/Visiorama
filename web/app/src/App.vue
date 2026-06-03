@@ -1,7 +1,18 @@
 <template>
   <div id="app-shell">
     <header class="app-header">
-      <router-link to="/" class="app-logo">Visiorama</router-link>
+      <nav class="app-breadcrumbs" aria-label="breadcrumb">
+        <router-link to="/" class="crumb crumb--root">Visiorama</router-link>
+        <template v-for="(crumb, i) in breadcrumbs" :key="i">
+          <span class="sep" aria-hidden="true">/</span>
+          <router-link
+            v-if="crumb.albumId != null && i < breadcrumbs.length - 1"
+            :to="{ name: 'album', params: { id: crumb.albumId } }"
+            class="crumb"
+          >{{ crumb.name }}</router-link>
+          <span v-else class="crumb crumb--current">{{ crumb.name }}</span>
+        </template>
+      </nav>
       <ScanButton @done="onScanDone" />
     </header>
     <main class="app-main">
@@ -11,6 +22,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGalleryStore } from './stores/gallery.js'
 import ScanButton from './components/ScanButton.vue'
@@ -18,8 +30,13 @@ import ScanButton from './components/ScanButton.vue'
 const router = useRouter()
 const store = useGalleryStore()
 
+// Skip root crumb — it's always the "Visiorama" logo link
+const breadcrumbs = computed(() => {
+  const crumbs = store.currentAlbum?.breadcrumbs ?? []
+  return crumbs.filter(c => c.relativePath !== '')
+})
+
 function onScanDone() {
-  // re-fetch whichever album is currently displayed
   const route = router.currentRoute.value
   const id = route.params.id ? parseInt(route.params.id, 10) : null
   store.fetchAlbum(id, 1)
@@ -68,13 +85,38 @@ a:hover { text-decoration: underline; }
   z-index: 100;
 }
 
-.app-logo {
-  font-size: 18px;
+.app-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.sep { color: var(--border); user-select: none; }
+.crumb {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  text-decoration: none;
+}
+.crumb:hover { color: var(--accent); text-decoration: none; }
+.crumb--root {
+  font-size: 16px;
   font-weight: 700;
   color: var(--text);
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
-.app-logo:hover { text-decoration: none; color: var(--accent); }
+.crumb--root:hover { color: var(--accent); }
+.crumb--current {
+  color: var(--text);
+  font-weight: 500;
+  cursor: default;
+}
 
 .app-main {
   max-width: 1400px;

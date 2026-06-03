@@ -5,9 +5,6 @@
       {{ store.error }}
     </div>
     <template v-else-if="store.currentAlbum">
-      <Breadcrumbs :crumbs="store.currentAlbum.breadcrumbs" />
-
-      <h1 class="album-title">{{ store.currentAlbum.album.name }}</h1>
       <p class="album-meta">
         {{ store.currentAlbum.album.mediaCountRecursive }} total items
         <template v-if="store.currentAlbum.childAlbums.length > 0">
@@ -39,13 +36,16 @@
         </div>
       </section>
 
-      <!-- Empty state / not yet scanned -->
+      <!-- Empty state: only show scan button on root, not in sub-albums -->
       <div
         v-if="store.currentAlbum.childAlbums.length === 0 && store.currentAlbum.media.length === 0"
         class="empty-state"
       >
-        <p class="empty-state__msg">No media found. Run a scan to index your library.</p>
-        <ScanButton @done="load(1)" />
+        <template v-if="store.currentAlbum.album.relativePath === ''">
+          <p class="empty-state__msg">No media found. Run a scan to index your library.</p>
+          <ScanButton @done="load(1)" />
+        </template>
+        <p v-else class="empty-state__msg">This album is empty.</p>
       </div>
 
       <!-- Pagination -->
@@ -70,7 +70,6 @@
 import { computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGalleryStore } from '../stores/gallery.js'
-import Breadcrumbs from '../components/Breadcrumbs.vue'
 import AlbumTile from '../components/AlbumTile.vue'
 import MediaTile from '../components/MediaTile.vue'
 import ScanButton from '../components/ScanButton.vue'
@@ -102,11 +101,6 @@ watch(() => route.params.id, () => load())
 <style scoped>
 .album-view { padding-bottom: 40px; }
 
-.album-title {
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
 .album-meta {
   font-size: 13px;
   color: var(--muted);
