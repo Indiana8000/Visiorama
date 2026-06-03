@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/USERNAME/visiorama/internal/app"
-	"github.com/USERNAME/visiorama/internal/server"
+	"github.com/Indiana8000/visiorama/internal/app"
+	"github.com/Indiana8000/visiorama/internal/server"
 )
 
 func main() {

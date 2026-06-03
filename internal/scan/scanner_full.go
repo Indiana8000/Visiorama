@@ -10,9 +10,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/USERNAME/visiorama/internal/app"
-	"github.com/USERNAME/visiorama/internal/index"
-	"github.com/USERNAME/visiorama/internal/index/repositories"
+	"github.com/Indiana8000/visiorama/internal/app"
+	"github.com/Indiana8000/visiorama/internal/index"
+	"github.com/Indiana8000/visiorama/internal/index/repositories"
 )
 
 type Stats struct {

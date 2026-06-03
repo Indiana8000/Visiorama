@@ -3,9 +3,9 @@ package api
 import (
 	"net/http"
 
-	"github.com/USERNAME/visiorama/internal/app"
-	"github.com/USERNAME/visiorama/internal/index"
-	"github.com/USERNAME/visiorama/internal/scan"
+	"github.com/Indiana8000/visiorama/internal/app"
+	"github.com/Indiana8000/visiorama/internal/index"
+	"github.com/Indiana8000/visiorama/internal/scan"
 )
 
 func NewRouter(cfg *app.Config, store *index.Store) http.Handler {

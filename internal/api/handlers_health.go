@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/USERNAME/visiorama/internal/app"
-	"github.com/USERNAME/visiorama/internal/index"
+	"github.com/Indiana8000/visiorama/internal/app"
+	"github.com/Indiana8000/visiorama/internal/index"
 )
 
 var startTime = time.Now()

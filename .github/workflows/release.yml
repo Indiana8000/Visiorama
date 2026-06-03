@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend
+        working-directory: web/app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          for TARGET in "linux/amd64" "linux/arm64" "linux/arm"; do
+            OS=$(echo $TARGET | cut -d/ -f1)
+            ARCH=$(echo $TARGET | cut -d/ -f2)
+            OUTPUT="dist/visiorama-${OS}-${ARCH}"
+            # armv7 label for arm
+            if [ "$ARCH" = "arm" ]; then
+              OUTPUT="dist/visiorama-linux-armv7"
+              GOARM=7
+            fi
+            GOOS=$OS GOARCH=$ARCH GOARM=${GOARM:-} \
+              go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+              -o "$OUTPUT" ./cmd/visiorama
+            sha256sum "$OUTPUT" > "${OUTPUT}.sha256"
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/visiorama-linux-amd64
+            dist/visiorama-linux-amd64.sha256
+            dist/visiorama-linux-arm64
+            dist/visiorama-linux-arm64.sha256
+            dist/visiorama-linux-armv7
+            dist/visiorama-linux-armv7.sha256
+            install.sh
+          generate_release_notes: true

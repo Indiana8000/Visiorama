@@ -4,7 +4,7 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/USERNAME/visiorama/web"
+	"github.com/Indiana8000/visiorama/web"
 )
 
 // spaHandler serves the embedded Vue dist files.

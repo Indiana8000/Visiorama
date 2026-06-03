@@ -11,7 +11,7 @@ import (
 	"github.com/rwcarlsen/goexif/exif"
 	_ "golang.org/x/image/webp"
 
-	"github.com/USERNAME/visiorama/internal/index/repositories"
+	"github.com/Indiana8000/visiorama/internal/index/repositories"
 )
 
 func ExtractImageMeta(path, relPath, filename, ext, mimeType string, albumID int64, largeWarningBytes int64) (*repositories.Media, bool) {

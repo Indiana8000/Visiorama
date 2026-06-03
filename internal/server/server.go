@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/USERNAME/visiorama/internal/api"
-	"github.com/USERNAME/visiorama/internal/app"
-	"github.com/USERNAME/visiorama/internal/index"
-	"github.com/USERNAME/visiorama/internal/observability"
-	"github.com/USERNAME/visiorama/internal/util"
+	"github.com/Indiana8000/visiorama/internal/api"
+	"github.com/Indiana8000/visiorama/internal/app"
+	"github.com/Indiana8000/visiorama/internal/index"
+	"github.com/Indiana8000/visiorama/internal/observability"
+	"github.com/Indiana8000/visiorama/internal/util"
 )
 
 func Run(cfg *app.Config) error {

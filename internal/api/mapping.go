@@ -3,7 +3,7 @@ package api
 import (
 	"fmt"
 
-	"github.com/USERNAME/visiorama/internal/index/repositories"
+	"github.com/Indiana8000/visiorama/internal/index/repositories"
 )
 
 func repoMediaToSummary(m *repositories.Media) MediaSummary {

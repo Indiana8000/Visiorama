@@ -1,4 +1,4 @@
-module github.com/USERNAME/visiorama
+module github.com/Indiana8000/visiorama
 
 go 1.25.0
 
