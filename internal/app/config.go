@@ -1,7 +1,10 @@
 package app
 
 import (
+	"errors"
+	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -50,6 +53,26 @@ type LimitsConfig struct {
 
 type DatabaseConfig struct {
 	SQLitePath string `yaml:"sqlitePath"`
+}
+
+func (c *Config) Validate() error {
+	var errs []string
+	if c.Library.RootPath == "" {
+		errs = append(errs, "library.rootPath is required")
+	}
+	if c.Database.SQLitePath == "" {
+		errs = append(errs, "database.sqlitePath is required")
+	}
+	if c.Thumbnails.CacheDir == "" {
+		errs = append(errs, "thumbnails.cacheDir is required")
+	}
+	if c.Server.Port <= 0 || c.Server.Port > 65535 {
+		errs = append(errs, fmt.Sprintf("server.port %d is invalid (must be 1-65535)", c.Server.Port))
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 func LoadConfig(path string) (*Config, error) {

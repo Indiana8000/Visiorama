@@ -18,6 +18,10 @@ func main() {
 		slog.Error("load config", "err", err)
 		os.Exit(1)
 	}
+	if err := cfg.Validate(); err != nil {
+		slog.Error("invalid config", "err", err)
+		os.Exit(1)
+	}
 
 	if err := server.Run(cfg); err != nil {
 		slog.Error("run", "err", err)

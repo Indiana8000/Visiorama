@@ -6,9 +6,9 @@
 data/
 configs/visiorama.yaml
 
-# Frontend build output
-web/app/dist/
+# Frontend
 web/app/node_modules/
+# dist is intentionally committed — required for Go embed (go build embeds it into binary)
 
 # Vite cache
 web/app/.vite/

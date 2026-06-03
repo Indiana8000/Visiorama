@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGalleryStore } from '../stores/gallery.js'
 import { api } from '../api/client.js'
@@ -165,7 +165,18 @@ async function load(id) {
   }
 }
 
-onMounted(() => load(mediaId.value))
+onMounted(() => {
+  load(mediaId.value)
+  window.addEventListener('keydown', onKey)
+})
+
+function onKey(e) {
+  if (e.key === 'ArrowRight' && nextMedia.value) navigate(nextMedia.value.id)
+  if (e.key === 'ArrowLeft'  && prevMedia.value) navigate(prevMedia.value.id)
+  if (e.key === 'Escape') goBack()
+}
+
+onUnmounted(() => window.removeEventListener('keydown', onKey))
 watch(mediaId, (id) => load(id))
 </script>
 

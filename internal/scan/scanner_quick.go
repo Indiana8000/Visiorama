@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -252,8 +253,63 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 	close(jobs)
 	wg.Wait()
 
-	// --- Step 4: Recompute counts for affected albums only ---
+	// --- Step 4: Prune orphan media inside changed dirs ---
+	// Files that existed before but are now gone won't be re-upserted, so we
+	// must delete them explicitly.  We only look inside the changed dirs to
+	// avoid a full-table scan.
 	for relPath, id := range affectedAlbums {
+		dbPaths, err := mediaRepo.ListPathsByAlbum(id)
+		if err != nil {
+			slog.Warn("quick scan: list paths for album", "path", relPath, "err", err)
+			continue
+		}
+		for _, p := range dbPaths {
+			absP := filepath.Join(root, filepath.FromSlash(p))
+			if _, statErr := os.Stat(absP); os.IsNotExist(statErr) {
+				if err := mediaRepo.DeleteByPath(p); err != nil {
+					slog.Warn("quick scan: delete orphan media", "path", p, "err", err)
+				}
+			}
+		}
+	}
+
+	// --- Step 5: Recompute counts for affected albums + ancestors ---
+	// Build the full ancestor closure so parent counts stay correct.
+	// Process deepest paths first (same strategy as FullScanner.recomputeCounts).
+	closure := map[string]int64{}
+	for relPath, id := range affectedAlbums {
+		closure[relPath] = id
+	}
+	// Walk up the tree for each affected album.
+	for relPath := range affectedAlbums {
+		p := relPath
+		for p != "" {
+			parent := filepath.ToSlash(filepath.Dir(p))
+			if parent == "." {
+				parent = ""
+			}
+			if _, seen := closure[parent]; seen {
+				break
+			}
+			a, err := albumRepo.GetByPath(parent)
+			if err != nil || a == nil {
+				break
+			}
+			closure[parent] = a.ID
+			p = parent
+		}
+	}
+
+	// Sort deepest-first.
+	closurePaths := make([]string, 0, len(closure))
+	for p := range closure {
+		closurePaths = append(closurePaths, p)
+	}
+	sortByDepthDesc(closurePaths)
+
+	recursiveCounts := map[int64]int{}
+	for _, relPath := range closurePaths {
+		id := closure[relPath]
 		direct, err := mediaRepo.CountByAlbum(id)
 		if err != nil {
 			slog.Warn("quick scan: count media", "path", relPath, "err", err)
@@ -264,9 +320,25 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 			slog.Warn("quick scan: list children", "path", relPath, "err", err)
 			continue
 		}
-		if err := albumRepo.UpdateCounts(id, direct, direct, len(children)); err != nil {
+		recursive := direct
+		for _, child := range children {
+			recursive += recursiveCounts[child.ID]
+		}
+		recursiveCounts[id] = recursive
+		if err := albumRepo.UpdateCounts(id, direct, recursive, len(children)); err != nil {
 			slog.Warn("quick scan: update counts", "path", relPath, "err", err)
 		}
+	}
+
+	// Always recompute root (not in affectedAlbums).
+	if rootAlbum, err := albumRepo.GetRoot(); err == nil && rootAlbum != nil {
+		rootChildren, _ := albumRepo.ListChildren(rootAlbum.ID)
+		rootDirect, _ := mediaRepo.CountByAlbum(rootAlbum.ID)
+		rootRecursive := rootDirect
+		for _, child := range rootChildren {
+			rootRecursive += recursiveCounts[child.ID]
+		}
+		_ = albumRepo.UpdateCounts(rootAlbum.ID, rootDirect, rootRecursive, len(rootChildren))
 	}
 
 	return stats, false, nil

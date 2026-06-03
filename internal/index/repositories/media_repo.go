@@ -110,6 +110,24 @@ func (r *MediaRepo) DeleteByPath(relativePath string) error {
 	return err
 }
 
+// ListPathsByAlbum returns all relative_paths for media in a given album.
+func (r *MediaRepo) ListPathsByAlbum(albumID int64) ([]string, error) {
+	rows, err := r.db.Query(`SELECT relative_path FROM media WHERE album_id = ?`, albumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	return paths, rows.Err()
+}
+
 // ListAllPaths returns every relative_path stored in the media table.
 func (r *MediaRepo) ListAllPaths() ([]string, error) {
 	rows, err := r.db.Query(`SELECT relative_path FROM media`)
