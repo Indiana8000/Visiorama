@@ -1,0 +1,31 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+
+library:
+  rootPath: /mnt/media
+  includeEmptyAlbums: true
+
+scan:
+  defaultMode: quick
+  quickFallbackToFull: true
+  maxWorkers: 8
+
+filtering:
+  excludePatterns:
+    - ".*"
+    - "@eaDir"
+    - "Thumbs.db"
+  allowedImageExtensions: ["jpg", "jpeg", "png", "webp", "gif", "heic", "tif", "tiff", "avif"]
+  allowedVideoExtensions: ["mp4", "mkv", "mov", "webm", "avi", "m4v"]
+  enableMimeSniff: true
+
+thumbnails:
+  cacheDir: /var/lib/visiorama/thumbs
+  sizes: [240, 480, 960]
+
+limits:
+  largeMediaWarningBytes: 104857600
+
+database:
+  sqlitePath: /var/lib/visiorama/index.db

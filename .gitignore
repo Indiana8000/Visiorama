@@ -1,0 +1,23 @@
+# Go
+/visiorama.exe
+/visiorama
+
+# Runtime data
+data/
+configs/visiorama.yaml
+
+# Frontend build output
+web/app/dist/
+web/app/node_modules/
+
+# Vite cache
+web/app/.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

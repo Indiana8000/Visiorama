@@ -1,0 +1,670 @@
+openapi: 3.0.3
+info:
+  title: Visiorama Gallery API
+  version: 1.0.0
+  description: >-
+    Draft API for read-only gallery browsing, metadata retrieval, media streaming,
+    thumbnail access, and manual scan orchestration.
+servers:
+  - url: http://localhost:8080
+
+tags:
+  - name: Albums
+  - name: Media
+  - name: Scans
+  - name: Health
+
+paths:
+  /api/albums/root:
+    get:
+      tags: [Albums]
+      summary: Get root album listing
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Root album payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumResponse'
+              example:
+                album:
+                  id: 1
+                  relativePath: ""
+                  name: "/"
+                  parentAlbumId: null
+                  mediaCountDirect: 0
+                  mediaCountRecursive: 1500
+                  childAlbumCount: 4
+                breadcrumbs:
+                  - name: "/"
+                    relativePath: ""
+                childAlbums:
+                  - id: 2
+                    relativePath: "Vacations"
+                    name: "Vacations"
+                    parentAlbumId: 1
+                    mediaCountDirect: 45
+                    mediaCountRecursive: 312
+                    childAlbumCount: 6
+                    coverMediaId: 88
+                    coverThumbnailUrl: "/api/media/88/thumbnail"
+                media: []
+                page:
+                  page: 1
+                  pageSize: 100
+                  totalItems: 4
+                  totalPages: 1
+                  hasNext: false
+                  hasPrev: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/albums/{albumId}:
+    get:
+      tags: [Albums]
+      summary: Get album by ID
+      parameters:
+        - $ref: '#/components/parameters/AlbumId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Album payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumResponse'
+              example:
+                album:
+                  id: 7
+                  relativePath: "Vacations/Italy2023"
+                  name: "Italy2023"
+                  parentAlbumId: 2
+                  mediaCountDirect: 58
+                  mediaCountRecursive: 58
+                  childAlbumCount: 0
+                breadcrumbs:
+                  - name: "/"
+                    relativePath: ""
+                  - albumId: 2
+                    name: "Vacations"
+                    relativePath: "Vacations"
+                  - albumId: 7
+                    name: "Italy2023"
+                    relativePath: "Vacations/Italy2023"
+                childAlbums: []
+                media:
+                  - id: 201
+                    albumId: 7
+                    filename: "IMG_0042.jpg"
+                    type: image
+                    width: 4032
+                    height: 3024
+                    durationMs: null
+                    sizeBytes: 4718592
+                    captureDate: "2023-08-15T14:22:10Z"
+                    thumbnailUrl: "/api/media/201/thumbnail"
+                page:
+                  page: 1
+                  pageSize: 100
+                  totalItems: 58
+                  totalPages: 1
+                  hasNext: false
+                  hasPrev: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/albums/by-path:
+    get:
+      tags: [Albums]
+      summary: Resolve album by relative path
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Relative path under configured root (e.g. "Vacations/Italy2023")
+          example: "Vacations/Italy2023"
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Album payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/media/{mediaId}/metadata:
+    get:
+      tags: [Media]
+      summary: Get metadata for one media item
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      responses:
+        '200':
+          description: Media metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaMetadata'
+              example:
+                id: 201
+                albumId: 7
+                filename: "IMG_0042.jpg"
+                type: image
+                width: 4032
+                height: 3024
+                durationMs: null
+                sizeBytes: 4718592
+                captureDate: "2023-08-15T14:22:10Z"
+                thumbnailUrl: "/api/media/201/thumbnail"
+                extension: "jpg"
+                mimeType: "image/jpeg"
+                cameraModel: "Apple iPhone 14 Pro"
+                lensModel: null
+                gpsLat: 41.9028
+                gpsLon: 12.4964
+                orientation: 1
+                warningLargeMedia: false
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/media/{mediaId}/thumbnail:
+    get:
+      tags: [Media]
+      summary: Get media thumbnail or poster frame
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            enum: [240, 480, 960]
+      responses:
+        '200':
+          description: Thumbnail binary
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/media/{mediaId}/stream:
+    get:
+      tags: [Media]
+      summary: Stream original media file
+      description: >-
+        Serves the original file. Supports HTTP Range requests (RFC 7233) for
+        video seeking. Returns 206 Partial Content for valid Range headers,
+        200 OK when no Range header is present.
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      responses:
+        '200':
+          description: Full media stream (no Range header supplied)
+          headers:
+            Accept-Ranges:
+              schema:
+                type: string
+                example: bytes
+            Content-Length:
+              schema:
+                type: integer
+            Content-Type:
+              schema:
+                type: string
+                example: video/mp4
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Partial content (Range request satisfied)
+          headers:
+            Content-Range:
+              schema:
+                type: string
+                example: 'bytes 0-1023/8192000'
+            Accept-Ranges:
+              schema:
+                type: string
+                example: bytes
+            Content-Length:
+              schema:
+                type: integer
+            Content-Type:
+              schema:
+                type: string
+                example: video/mp4
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '416':
+          description: Range Not Satisfiable
+          headers:
+            Content-Range:
+              schema:
+                type: string
+                example: 'bytes */8192000'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/scans:
+    post:
+      tags: [Scans]
+      summary: Trigger manual scan
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanRequest'
+            example:
+              mode: quick
+      responses:
+        '202':
+          description: Scan accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanJob'
+              example:
+                id: "scan-20240815-001"
+                mode: quick
+                status: queued
+                startedAt: null
+                finishedAt: null
+                scannedFiles: 0
+                indexedFiles: 0
+                skippedFiles: 0
+                errorCount: 0
+                fallbackToFull: false
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/scans/{scanId}:
+    get:
+      tags: [Scans]
+      summary: Get scan job status
+      parameters:
+        - $ref: '#/components/parameters/ScanId'
+      responses:
+        '200':
+          description: Scan job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanJob'
+              example:
+                id: "scan-20240815-001"
+                mode: quick
+                status: success
+                startedAt: "2024-08-15T10:00:00Z"
+                finishedAt: "2024-08-15T10:00:12Z"
+                scannedFiles: 1500
+                indexedFiles: 12
+                skippedFiles: 1488
+                errorCount: 0
+                fallbackToFull: false
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Service health with root availability
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                mediaRootAvailable: true
+                databaseAvailable: true
+                uptimeSeconds: 3600
+
+components:
+  parameters:
+    AlbumId:
+      name: albumId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    MediaId:
+      name: mediaId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ScanId:
+      name: scanId
+      in: path
+      required: true
+      schema:
+        type: string
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: NOT_FOUND
+            message: Resource does not exist
+    BadRequest:
+      description: Invalid query parameter or request body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: INVALID_PARAM
+            message: "pageSize must be between 1 and 500"
+    Conflict:
+      description: Conflict — a scan job is already running
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: SCAN_ALREADY_RUNNING
+            message: A scan job is already in progress
+
+  schemas:
+    AlbumResponse:
+      type: object
+      properties:
+        album:
+          $ref: '#/components/schemas/Album'
+        breadcrumbs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Breadcrumb'
+        childAlbums:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlbumTile'
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+      required: [album, breadcrumbs, childAlbums, media, page]
+
+    Album:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        relativePath:
+          type: string
+        name:
+          type: string
+        parentAlbumId:
+          type: integer
+          format: int64
+          nullable: true
+        mediaCountDirect:
+          type: integer
+        mediaCountRecursive:
+          type: integer
+        childAlbumCount:
+          type: integer
+      required:
+        - id
+        - relativePath
+        - name
+        - mediaCountDirect
+        - mediaCountRecursive
+        - childAlbumCount
+
+    AlbumTile:
+      allOf:
+        - $ref: '#/components/schemas/Album'
+        - type: object
+          properties:
+            coverMediaId:
+              type: integer
+              format: int64
+              nullable: true
+            coverThumbnailUrl:
+              type: string
+              nullable: true
+
+    Breadcrumb:
+      type: object
+      properties:
+        albumId:
+          type: integer
+          format: int64
+          nullable: true
+        name:
+          type: string
+        relativePath:
+          type: string
+      required: [name, relativePath]
+
+    MediaSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        albumId:
+          type: integer
+          format: int64
+        filename:
+          type: string
+        type:
+          type: string
+          enum: [image, video]
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+        sizeBytes:
+          type: integer
+          format: int64
+        captureDate:
+          type: string
+          format: date-time
+          nullable: true
+        thumbnailUrl:
+          type: string
+      required:
+        - id
+        - albumId
+        - filename
+        - type
+        - sizeBytes
+        - thumbnailUrl
+
+    MediaMetadata:
+      allOf:
+        - $ref: '#/components/schemas/MediaSummary'
+        - type: object
+          properties:
+            extension:
+              type: string
+            mimeType:
+              type: string
+            cameraModel:
+              type: string
+              nullable: true
+            lensModel:
+              type: string
+              nullable: true
+            gpsLat:
+              type: number
+              format: double
+              nullable: true
+            gpsLon:
+              type: number
+              format: double
+              nullable: true
+            orientation:
+              type: integer
+              nullable: true
+            warningLargeMedia:
+              type: boolean
+          required: [extension, mimeType, warningLargeMedia]
+
+    ScanRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [full, quick]
+          default: quick
+      required: []
+
+    ScanJob:
+      type: object
+      properties:
+        id:
+          type: string
+        mode:
+          type: string
+          enum: [full, quick]
+        status:
+          type: string
+          enum: [queued, running, success, failed]
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        scannedFiles:
+          type: integer
+        indexedFiles:
+          type: integer
+        skippedFiles:
+          type: integer
+        errorCount:
+          type: integer
+        fallbackToFull:
+          type: boolean
+      required:
+        - id
+        - mode
+        - status
+        - scannedFiles
+        - indexedFiles
+        - skippedFiles
+        - errorCount
+        - fallbackToFull
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        mediaRootAvailable:
+          type: boolean
+        databaseAvailable:
+          type: boolean
+        uptimeSeconds:
+          type: integer
+      required: [status, mediaRootAvailable, databaseAvailable, uptimeSeconds]
+
+    PageInfo:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          example: 2
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 500
+          example: 100
+        totalItems:
+          type: integer
+          minimum: 0
+          example: 347
+        totalPages:
+          type: integer
+          minimum: 0
+          example: 4
+        hasNext:
+          type: boolean
+          example: true
+        hasPrev:
+          type: boolean
+          example: true
+      required: [page, pageSize, totalItems, totalPages, hasNext, hasPrev]
+
+    ErrorResponse:
+      type: object
+      description: >-
+        Uniform error envelope returned for all 4xx/5xx responses.
+        Known code values: NOT_FOUND, INVALID_PARAM, SCAN_ALREADY_RUNNING,
+        RANGE_NOT_SATISFIABLE, INTERNAL_ERROR.
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code (SCREAMING_SNAKE_CASE)
+          example: NOT_FOUND
+        message:
+          type: string
+          description: Human-readable explanation
+          example: Album 42 does not exist
+      required: [code, message]

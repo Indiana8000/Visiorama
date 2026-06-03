@@ -1,0 +1,169 @@
+package repositories
+
+import (
+	"database/sql"
+	"fmt"
+)
+
+type Media struct {
+	ID           int64
+	AlbumID      int64
+	Filename     string
+	RelativePath string
+	Type         string
+	Width        *int
+	Height       *int
+	DurationMs   *int64
+	SizeBytes    int64
+	CaptureDate  *string
+	Extension    string
+	MimeType     string
+	CameraModel  *string
+	LensModel    *string
+	GpsLat       *float64
+	GpsLon       *float64
+	Orientation  *int
+	MtimeUnix    int64
+}
+
+type MediaRepo struct {
+	db *sql.DB
+}
+
+func NewMediaRepo(db *sql.DB) *MediaRepo {
+	return &MediaRepo{db: db}
+}
+
+func (r *MediaRepo) GetByID(id int64) (*Media, error) {
+	row := r.db.QueryRow(`
+		SELECT id, album_id, filename, relative_path, type,
+		       width, height, duration_ms, size_bytes, capture_date,
+		       extension, mime_type, camera_model, lens_model,
+		       gps_lat, gps_lon, orientation, mtime_unix
+		FROM media WHERE id = ?`, id)
+	return scanMedia(row)
+}
+
+func (r *MediaRepo) ListByAlbum(albumID int64, offset, limit int) ([]Media, error) {
+	rows, err := r.db.Query(`
+		SELECT id, album_id, filename, relative_path, type,
+		       width, height, duration_ms, size_bytes, capture_date,
+		       extension, mime_type, camera_model, lens_model,
+		       gps_lat, gps_lon, orientation, mtime_unix
+		FROM media WHERE album_id = ?
+		ORDER BY capture_date ASC, filename ASC
+		LIMIT ? OFFSET ?`, albumID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectMedia(rows)
+}
+
+func (r *MediaRepo) CountByAlbum(albumID int64) (int, error) {
+	var n int
+	err := r.db.QueryRow(`SELECT COUNT(*) FROM media WHERE album_id = ?`, albumID).Scan(&n)
+	return n, err
+}
+
+func (r *MediaRepo) Upsert(m *Media) (int64, error) {
+	res, err := r.db.Exec(`
+		INSERT INTO media (album_id, filename, relative_path, type,
+		                   width, height, duration_ms, size_bytes, capture_date,
+		                   extension, mime_type, camera_model, lens_model,
+		                   gps_lat, gps_lon, orientation, mtime_unix)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(relative_path) DO UPDATE SET
+		  album_id     = excluded.album_id,
+		  filename     = excluded.filename,
+		  type         = excluded.type,
+		  width        = excluded.width,
+		  height       = excluded.height,
+		  duration_ms  = excluded.duration_ms,
+		  size_bytes   = excluded.size_bytes,
+		  capture_date = excluded.capture_date,
+		  extension    = excluded.extension,
+		  mime_type    = excluded.mime_type,
+		  camera_model = excluded.camera_model,
+		  lens_model   = excluded.lens_model,
+		  gps_lat      = excluded.gps_lat,
+		  gps_lon      = excluded.gps_lon,
+		  orientation  = excluded.orientation,
+		  mtime_unix   = excluded.mtime_unix`,
+		m.AlbumID, m.Filename, m.RelativePath, m.Type,
+		m.Width, m.Height, m.DurationMs, m.SizeBytes, m.CaptureDate,
+		m.Extension, m.MimeType, m.CameraModel, m.LensModel,
+		m.GpsLat, m.GpsLon, m.Orientation, m.MtimeUnix)
+	if err != nil {
+		return 0, err
+	}
+	_ = res
+	var id int64
+	if err := r.db.QueryRow(`SELECT id FROM media WHERE relative_path = ?`, m.RelativePath).Scan(&id); err != nil {
+		return 0, fmt.Errorf("fetch id after upsert: %w", err)
+	}
+	return id, nil
+}
+
+func (r *MediaRepo) DeleteByPath(relativePath string) error {
+	_, err := r.db.Exec(`DELETE FROM media WHERE relative_path = ?`, relativePath)
+	return err
+}
+
+// ListAllPaths returns every relative_path stored in the media table.
+func (r *MediaRepo) ListAllPaths() ([]string, error) {
+	rows, err := r.db.Query(`SELECT relative_path FROM media`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	return paths, rows.Err()
+}
+
+func (r *MediaRepo) GetMtimeByPath(relativePath string) (int64, bool, error) {
+	var mtime int64
+	err := r.db.QueryRow(`SELECT mtime_unix FROM media WHERE relative_path = ?`, relativePath).Scan(&mtime)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	return mtime, true, err
+}
+
+func scanMedia(row *sql.Row) (*Media, error) {
+	m := &Media{}
+	err := row.Scan(
+		&m.ID, &m.AlbumID, &m.Filename, &m.RelativePath, &m.Type,
+		&m.Width, &m.Height, &m.DurationMs, &m.SizeBytes, &m.CaptureDate,
+		&m.Extension, &m.MimeType, &m.CameraModel, &m.LensModel,
+		&m.GpsLat, &m.GpsLon, &m.Orientation, &m.MtimeUnix,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return m, err
+}
+
+func collectMedia(rows *sql.Rows) ([]Media, error) {
+	var out []Media
+	for rows.Next() {
+		var m Media
+		if err := rows.Scan(
+			&m.ID, &m.AlbumID, &m.Filename, &m.RelativePath, &m.Type,
+			&m.Width, &m.Height, &m.DurationMs, &m.SizeBytes, &m.CaptureDate,
+			&m.Extension, &m.MimeType, &m.CameraModel, &m.LensModel,
+			&m.GpsLat, &m.GpsLon, &m.Orientation, &m.MtimeUnix,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
