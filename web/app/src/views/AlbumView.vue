@@ -125,12 +125,12 @@ watch(() => route.params.id, () => load())
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 }
 .grid--media {
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 }
 
 @media (max-width: 480px) {
   .grid--albums { grid-template-columns: repeat(2, 1fr); }
-  .grid--media { grid-template-columns: repeat(3, 1fr); }
+  .grid--media { grid-template-columns: repeat(2, 1fr); }
 }
 
 .pagination {

@@ -43,8 +43,18 @@ type FilteringConfig struct {
 }
 
 type ThumbnailsConfig struct {
-	CacheDir string `yaml:"cacheDir"`
-	Sizes    []int  `yaml:"sizes"`
+	CacheDir    string `yaml:"cacheDir"`
+	Sizes       []int  `yaml:"sizes"`
+	AspectRatioW int   `yaml:"aspectRatioW"`
+	AspectRatioH int   `yaml:"aspectRatioH"`
+}
+
+// ThumbHeight returns the thumbnail height for a given width based on configured aspect ratio.
+func (t *ThumbnailsConfig) ThumbHeight(width int) int {
+	if t.AspectRatioW <= 0 || t.AspectRatioH <= 0 {
+		return width
+	}
+	return width * t.AspectRatioH / t.AspectRatioW
 }
 
 type LimitsConfig struct {
@@ -95,7 +105,9 @@ func defaultConfig() *Config {
 		Scan:   ScanConfig{DefaultMode: "quick", QuickFallbackToFull: true, MaxWorkers: 8},
 		Limits: LimitsConfig{LargeMediaWarningBytes: 104857600},
 		Thumbnails: ThumbnailsConfig{
-			Sizes: []int{240, 480},
+			Sizes:        []int{320, 640},
+			AspectRatioW: 4,
+			AspectRatioH: 3,
 		},
 		Filtering: FilteringConfig{
 			ExcludePatterns:        []string{".*", "@eaDir", "Thumbs.db"},

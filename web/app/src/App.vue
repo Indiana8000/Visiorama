@@ -10,6 +10,11 @@
             :to="{ name: 'album', params: { id: crumb.albumId } }"
             class="crumb"
           >{{ crumb.name }}</router-link>
+          <span
+            v-else-if="crumb.albumId != null"
+            class="crumb crumb--current crumb--reload"
+            @click="onCurrentCrumbClick(crumb)"
+          >{{ crumb.name }}</span>
           <span v-else class="crumb crumb--current">{{ crumb.name }}</span>
         </template>
       </nav>
@@ -23,11 +28,12 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useGalleryStore } from './stores/gallery.js'
 import ScanButton from './components/ScanButton.vue'
 
 const router = useRouter()
+const route = useRoute()
 const store = useGalleryStore()
 
 // Skip root crumb — it's always the "Visiorama" logo link
@@ -35,6 +41,14 @@ const breadcrumbs = computed(() => {
   const crumbs = store.currentAlbum?.breadcrumbs ?? []
   return crumbs.filter(c => c.relativePath !== '')
 })
+
+function onCurrentCrumbClick(crumb) {
+  const isLightbox = route.name === 'media'
+  if (isLightbox) {
+    router.push({ name: 'album', params: { id: crumb.albumId } })
+  }
+  store.fetchAlbum(crumb.albumId, 1)
+}
 
 function onScanDone() {
   const route = router.currentRoute.value
@@ -116,6 +130,12 @@ a:hover { text-decoration: underline; }
   color: var(--text);
   font-weight: 500;
   cursor: default;
+}
+.crumb--reload {
+  cursor: pointer;
+}
+.crumb--reload:hover {
+  color: var(--accent);
 }
 
 .app-main {

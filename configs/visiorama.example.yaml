@@ -3,7 +3,7 @@ server:
   port: 8080
 
 library:
-  rootPath: /mnt/media
+  rootPath: /mnt/photos
   includeEmptyAlbums: true
 
 scan:
@@ -22,7 +22,9 @@ filtering:
 
 thumbnails:
   cacheDir: /var/lib/visiorama/thumbs
-  sizes: [240, 480]
+  sizes: [320, 640]
+  aspectRatioW: 4
+  aspectRatioH: 3
 
 limits:
   largeMediaWarningBytes: 104857600

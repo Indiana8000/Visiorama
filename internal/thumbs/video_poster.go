@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 )
 
-// GenerateVideoPoster extracts the first frame of a video as JPEG via ffmpeg.
-// Falls back gracefully if ffmpeg is not installed.
-func GenerateVideoPoster(srcPath, cacheDir string, size int) (string, error) {
-	cachePath := CachePath(cacheDir, srcPath, size)
+// GenerateVideoPoster extracts the first frame of a video as JPEG via ffmpeg,
+// scaled and cropped to exactly width×height.
+func GenerateVideoPoster(srcPath, cacheDir string, width, height int) (string, error) {
+	cachePath := CachePath(cacheDir, srcPath, width, height)
 
 	if _, err := os.Stat(cachePath); err == nil {
 		return cachePath, nil
@@ -20,8 +20,11 @@ func GenerateVideoPoster(srcPath, cacheDir string, size int) (string, error) {
 		return "", fmt.Errorf("mkdir cache: %w", err)
 	}
 
-	// Extract frame at 0s, fit within size×size, maintain aspect ratio.
-	filter := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease", size, size)
+	// Scale to fill width×height, then center-crop to exact dimensions.
+	filter := fmt.Sprintf(
+		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d",
+		width, height, width, height,
+	)
 	cmd := exec.Command("ffmpeg",
 		"-y",
 		"-ss", "0",

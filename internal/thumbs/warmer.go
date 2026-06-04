@@ -26,22 +26,24 @@ type MediaSource interface {
 // It runs as a single background goroutine to stay resource-friendly.
 // Foreground thumbnail requests call Pause() to yield the CPU for 30 seconds.
 type Warmer struct {
-	media    MediaSource
-	rootPath string
-	cacheDir string
-	defaultSize int
+	media         MediaSource
+	rootPath      string
+	cacheDir      string
+	defaultWidth  int
+	defaultHeight int
 
-	paused     atomic.Int64  // unix-nano of last Pause() call; 0 = not paused
-	pending    atomic.Int64
-	running    atomic.Bool
+	paused  atomic.Int64 // unix-nano of last Pause() call; 0 = not paused
+	pending atomic.Int64
+	running atomic.Bool
 }
 
-func NewWarmer(media MediaSource, rootPath, cacheDir string, defaultSize int) *Warmer {
+func NewWarmer(media MediaSource, rootPath, cacheDir string, defaultWidth, defaultHeight int) *Warmer {
 	return &Warmer{
-		media:       media,
-		rootPath:    rootPath,
-		cacheDir:    cacheDir,
-		defaultSize: defaultSize,
+		media:         media,
+		rootPath:      rootPath,
+		cacheDir:      cacheDir,
+		defaultWidth:  defaultWidth,
+		defaultHeight: defaultHeight,
 	}
 }
 
@@ -119,10 +121,10 @@ func (w *Warmer) loop(ctx context.Context) {
 
 		switch item.Type {
 		case "image":
-			_, err = Generate(absPath, w.cacheDir, w.defaultSize)
+			_, err = Generate(absPath, w.cacheDir, w.defaultWidth, w.defaultHeight)
 		case "video":
 			if FFmpegAvailable() {
-				_, err = GenerateVideoPoster(absPath, w.cacheDir, w.defaultSize)
+				_, err = GenerateVideoPoster(absPath, w.cacheDir, w.defaultWidth, w.defaultHeight)
 			} else {
 				// No ffmpeg — skip permanently so we don't retry forever
 				err = nil
@@ -132,7 +134,7 @@ func (w *Warmer) loop(ctx context.Context) {
 		if err != nil {
 			slog.Warn("thumb warmer: generation failed, skipping permanently", "path", item.RelativePath, "err", err)
 		} else {
-			slog.Debug("thumb warmer: generated", "path", item.RelativePath, "size", w.defaultSize)
+			slog.Debug("thumb warmer: generated", "path", item.RelativePath, "width", w.defaultWidth, "height", w.defaultHeight)
 		}
 		// Mark ready regardless of outcome — foreground handler generates on demand
 		// and serves a placeholder on failure, so retrying a permanently broken item

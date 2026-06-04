@@ -47,7 +47,7 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	validSizes := h.cfg.Thumbnails.Sizes
-	size := validSizes[0]
+	width := validSizes[0]
 	if v := r.URL.Query().Get("size"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
@@ -65,8 +65,9 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 			badRequest(w, fmt.Sprintf("size must be one of %v", validSizes))
 			return
 		}
-		size = n
+		width = n
 	}
+	height := h.cfg.Thumbnails.ThumbHeight(width)
 
 	mediaRepo := repositories.NewMediaRepo(h.store.DB())
 	m, err := mediaRepo.GetByID(id)
@@ -94,13 +95,13 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 	var cachePath string
 	switch m.Type {
 	case "image":
-		cachePath, err = thumbs.Generate(absPath, h.cfg.Thumbnails.CacheDir, size)
+		cachePath, err = thumbs.Generate(absPath, h.cfg.Thumbnails.CacheDir, width, height)
 	case "video":
 		if !thumbs.FFmpegAvailable() {
 			servePlaceholder(w)
 			return
 		}
-		cachePath, err = thumbs.GenerateVideoPoster(absPath, h.cfg.Thumbnails.CacheDir, size)
+		cachePath, err = thumbs.GenerateVideoPoster(absPath, h.cfg.Thumbnails.CacheDir, width, height)
 	default:
 		servePlaceholder(w)
 		return

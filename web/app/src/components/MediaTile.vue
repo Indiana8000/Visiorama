@@ -56,7 +56,7 @@ const thumbSrc = computed(() => {
 .media-tile__thumb {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 3;
   background: var(--bg3);
   overflow: hidden;
 }

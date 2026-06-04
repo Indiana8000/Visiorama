@@ -33,12 +33,13 @@ func Run(cfg *app.Config) error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	defaultSize := 240
+	defaultWidth := 320
 	if len(cfg.Thumbnails.Sizes) > 0 {
-		defaultSize = cfg.Thumbnails.Sizes[0]
+		defaultWidth = cfg.Thumbnails.Sizes[0]
 	}
+	defaultHeight := cfg.Thumbnails.ThumbHeight(defaultWidth)
 	mediaRepo := repositories.NewMediaRepo(store.DB())
-	warmer := thumbs.NewWarmer(mediaRepo, cfg.Library.RootPath, cfg.Thumbnails.CacheDir, defaultSize)
+	warmer := thumbs.NewWarmer(mediaRepo, cfg.Library.RootPath, cfg.Thumbnails.CacheDir, defaultWidth, defaultHeight)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
