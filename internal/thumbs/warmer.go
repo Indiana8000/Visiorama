@@ -130,13 +130,15 @@ func (w *Warmer) loop(ctx context.Context) {
 		}
 
 		if err != nil {
-			slog.Warn("thumb warmer: generation failed", "path", item.RelativePath, "err", err)
-			// Don't mark ready; will retry next cycle
+			slog.Warn("thumb warmer: generation failed, skipping permanently", "path", item.RelativePath, "err", err)
 		} else {
-			if setErr := w.media.SetThumbReady(item.ID, true); setErr != nil {
-				slog.Warn("thumb warmer: set thumb_ready", "id", item.ID, "err", setErr)
-			}
 			slog.Debug("thumb warmer: generated", "path", item.RelativePath, "size", w.defaultSize)
+		}
+		// Mark ready regardless of outcome — foreground handler generates on demand
+		// and serves a placeholder on failure, so retrying a permanently broken item
+		// (e.g. HEIC without ffmpeg) would just burn CPU forever.
+		if setErr := w.media.SetThumbReady(item.ID, true); setErr != nil {
+			slog.Warn("thumb warmer: set thumb_ready", "id", item.ID, "err", setErr)
 		}
 
 		sleep(ctx, warmerItemDelay)
