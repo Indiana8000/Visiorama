@@ -7,7 +7,10 @@
       "Read(//c/Go/bin/**)",
       "Bash(\"/c/Go/bin/go.exe\" version *)",
       "Bash(cmd.exe /c \"go version\")",
-      "Bash(powershell.exe *)"
+      "Bash(powershell.exe *)",
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+      "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+      "mcp__plugin_context-mode_context-mode__ctx_execute"
     ]
   }
 }
