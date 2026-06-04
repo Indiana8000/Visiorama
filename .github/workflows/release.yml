@@ -42,7 +42,7 @@ jobs:
               OUTPUT="dist/visiorama-linux-armv7"
               GOARM=7
             fi
-            GOOS=$OS GOARCH=$ARCH GOARM=${GOARM:-} \
+            CGO_ENABLED=0 GOOS=$OS GOARCH=$ARCH GOARM=${GOARM:-} \
               go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
               -o "$OUTPUT" ./cmd/visiorama
             sha256sum "$OUTPUT" > "${OUTPUT}.sha256"

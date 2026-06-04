@@ -1,5 +1,6 @@
 #!/bin/sh
 set -e
+set -o pipefail 2>/dev/null || true  # pipefail where supported (not busybox ash)
 
 REPO="Indiana8000/visiorama"
 INSTALL_DIR="/usr/local/bin"
@@ -92,6 +93,11 @@ main() {
   INIT=$(detect_init)
   TAG=$(latest_tag)
 
+  if [ -z "${TAG}" ]; then
+    echo "Could not resolve latest release tag. Check that a GitHub release exists for ${REPO}." >&2
+    exit 1
+  fi
+
   echo "Installing visiorama ${TAG} (${ARCH}, init=${INIT})"
 
   # Download binary
@@ -99,8 +105,14 @@ main() {
   CHECKSUM_URL="${BINARY_URL}.sha256"
 
   TMP=$(mktemp)
-  curl -fsSL -o "${TMP}" "${BINARY_URL}"
+  echo "  Downloading ${BINARY_URL}"
+  curl -fsSL -o "${TMP}" "${BINARY_URL}" || { echo "Binary download failed." >&2; rm -f "${TMP}"; exit 1; }
   EXPECTED=$(curl -fsSL "${CHECKSUM_URL}" | awk '{print $1}')
+  if [ -z "${EXPECTED}" ]; then
+    echo "Checksum download failed: ${CHECKSUM_URL}" >&2
+    rm -f "${TMP}"
+    exit 1
+  fi
   ACTUAL=$(sha256sum "${TMP}" | awk '{print $1}')
   if [ "${EXPECTED}" != "${ACTUAL}" ]; then
     echo "Checksum mismatch!" >&2
