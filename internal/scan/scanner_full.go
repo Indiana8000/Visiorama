@@ -42,17 +42,26 @@ func (s *FullScanner) Run(ctx context.Context, scanID string) (*Stats, error) {
 func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProgress ProgressFunc) (*Stats, error) {
 	InitExtensions(s.cfg.Filtering.AllowedImageExtensions, s.cfg.Filtering.AllowedVideoExtensions)
 
-	albumRepo := repositories.NewAlbumsRepo(s.store.DB())
-	mediaRepo := repositories.NewMediaRepo(s.store.DB())
-	scanRepo := repositories.NewScanRepo(s.store.DB())
+	db := s.store.DB()
+	albumRepo := repositories.NewAlbumsRepo(db)
+	mediaRepo := repositories.NewMediaRepo(db)
+	scanRepo := repositories.NewScanRepo(db)
+
+	// Use SQLite temp tables to track seen paths — avoids holding all paths in RAM.
+	for _, ddl := range []string{
+		`CREATE TEMPORARY TABLE IF NOT EXISTS _seen_media  (path TEXT PRIMARY KEY)`,
+		`CREATE TEMPORARY TABLE IF NOT EXISTS _seen_albums (path TEXT PRIMARY KEY)`,
+		`DELETE FROM _seen_media`,
+		`DELETE FROM _seen_albums`,
+		`INSERT OR IGNORE INTO _seen_albums VALUES ('')`, // root always present
+	} {
+		if _, err := db.Exec(ddl); err != nil {
+			return nil, fmt.Errorf("setup seen tables: %w", err)
+		}
+	}
 
 	stats := &Stats{}
 	excludeSet := buildExcludeSet(s.cfg.Filtering.ExcludePatterns)
-
-	// seenMediaPaths collects every media relative path found on disk this run.
-	seenMediaPaths := map[string]bool{}
-	// seenAlbumPaths collects every album relative path found on disk this run.
-	seenAlbumPaths := map[string]bool{"": true} // root always present
 
 	// albumID cache: relativePath → id
 	albumCache := map[string]int64{}
@@ -87,6 +96,9 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 			return 0, err
 		}
 		albumCache[relPath] = id
+		if _, err := db.Exec(`INSERT OR IGNORE INTO _seen_albums VALUES (?)`, relPath); err != nil {
+			slog.Warn("insert seen_album", "path", relPath, "err", err)
+		}
 		return id, nil
 	}
 
@@ -208,7 +220,6 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 			if relPath == "" {
 				return nil
 			}
-			seenAlbumPaths[relPath] = true
 			if _, err := ensureAlbum(relPath); err != nil {
 				slog.Warn("ensure album", "path", relPath, "err", err)
 			}
@@ -228,7 +239,9 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 			return nil
 		}
 
-		seenMediaPaths[relPath] = true
+		if _, err := db.Exec(`INSERT OR IGNORE INTO _seen_media VALUES (?)`, relPath); err != nil {
+			slog.Warn("insert seen_media", "path", relPath, "err", err)
+		}
 
 		albumRelPath := filepath.ToSlash(filepath.Dir(relPath))
 		if albumRelPath == "." {
@@ -256,13 +269,17 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 	wg.Wait()
 	cancelTick()
 
+	var seenMediaCount, seenAlbumCount int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM _seen_media`).Scan(&seenMediaCount)
+	_ = db.QueryRow(`SELECT COUNT(*) FROM _seen_albums`).Scan(&seenAlbumCount)
+
 	slog.Info("full scan: walk complete",
 		"scanned", stats.Scanned.Load(),
 		"indexed", stats.Indexed.Load(),
 		"skipped", stats.Skipped.Load(),
 		"errors", stats.ErrCount.Load(),
-		"seenAlbums", len(seenAlbumPaths),
-		"seenMedia", len(seenMediaPaths),
+		"seenAlbums", seenAlbumCount,
+		"seenMedia", seenMediaCount,
 		"walkErr", walkErr,
 	)
 
@@ -272,24 +289,22 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 
 	// Only clean orphans when walk actually found items — guards against a
 	// misconfigured rootPath or a failed walk wiping the entire index.
-	if len(seenMediaPaths) > 0 || len(seenAlbumPaths) > 1 {
-		if allMediaPaths, err := mediaRepo.ListAllPaths(); err == nil {
-			for _, p := range allMediaPaths {
-				if !seenMediaPaths[p] {
-					if err := mediaRepo.DeleteByPath(p); err != nil {
-						slog.Warn("delete orphan media", "path", p, "err", err)
-					}
+	if seenMediaCount > 0 || seenAlbumCount > 1 {
+		// Delete orphan media: paths in DB but not seen on disk this run.
+		if orphanPaths, err := mediaRepo.ListOrphanPaths(db); err == nil {
+			for _, p := range orphanPaths {
+				if err := mediaRepo.DeleteByPath(p); err != nil {
+					slog.Warn("delete orphan media", "path", p, "err", err)
 				}
 			}
 		}
 
-		if allAlbumPaths, err := albumRepo.ListAllPaths(); err == nil {
-			sortByDepthDesc(allAlbumPaths)
-			for _, p := range allAlbumPaths {
-				if !seenAlbumPaths[p] {
-					if err := albumRepo.DeleteByPath(p); err != nil {
-						slog.Warn("delete orphan album", "path", p, "err", err)
-					}
+		// Delete orphan albums deepest-first so parent counts are correct.
+		if orphanPaths, err := albumRepo.ListOrphanPaths(db); err == nil {
+			sortByDepthDesc(orphanPaths)
+			for _, p := range orphanPaths {
+				if err := albumRepo.DeleteByPath(p); err != nil {
+					slog.Warn("delete orphan album", "path", p, "err", err)
 				}
 			}
 		}

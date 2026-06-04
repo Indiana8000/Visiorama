@@ -124,6 +124,25 @@ func (r *AlbumsRepo) ListAllPaths() ([]string, error) {
 	return paths, rows.Err()
 }
 
+// ListOrphanPaths returns album paths (excluding root) NOT in the _seen_albums temp table.
+// db must be the same *sql.DB that created the temp table.
+func (r *AlbumsRepo) ListOrphanPaths(db *sql.DB) ([]string, error) {
+	rows, err := db.Query(`SELECT relative_path FROM albums WHERE relative_path != '' AND relative_path NOT IN (SELECT path FROM _seen_albums)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	return paths, rows.Err()
+}
+
 // DeleteByPath removes an album and all its media (cascade via FK not guaranteed in SQLite
 // without ON DELETE CASCADE, so we delete media first).
 func (r *AlbumsRepo) DeleteByPath(relPath string) error {

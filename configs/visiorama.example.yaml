@@ -16,6 +16,7 @@ filtering:
     - ".*"
     - "@eaDir"
     - "Thumbs.db"
+    - "#recycle"
   allowedImageExtensions: ["jpg", "jpeg", "png", "webp", "gif", "heic", "tif", "tiff", "avif"]
   allowedVideoExtensions: ["mp4", "mkv", "mov", "webm", "avi", "m4v"]
   enableMimeSniff: true

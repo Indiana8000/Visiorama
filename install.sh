@@ -159,14 +159,16 @@ scan:
   maxWorkers: 4
 
 filtering:
-  excludePatterns: [".*", "@eaDir", "Thumbs.db"]
+  excludePatterns: [".*", "@eaDir", "Thumbs.db", "#recycle"]
   allowedImageExtensions: ["jpg", "jpeg", "png", "webp", "gif", "heic", "tif", "tiff", "avif"]
   allowedVideoExtensions: ["mp4", "mkv", "mov", "webm", "avi", "m4v"]
   enableMimeSniff: true
 
 thumbnails:
-  cacheDir: ${DATA_DIR}/thumbs
-  sizes: [240, 480, 960]
+  cacheDir: /var/lib/visiorama/thumbs
+  sizes: [320, 640]
+  aspectRatioW: 4
+  aspectRatioH: 3
 
 limits:
   largeMediaWarningBytes: 104857600

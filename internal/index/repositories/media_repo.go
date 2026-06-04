@@ -146,6 +146,25 @@ func (r *MediaRepo) ListAllPaths() ([]string, error) {
 	return paths, rows.Err()
 }
 
+// ListOrphanPaths returns media paths that are NOT in the _seen_media temp table.
+// db must be the same *sql.DB that created the temp table.
+func (r *MediaRepo) ListOrphanPaths(db *sql.DB) ([]string, error) {
+	rows, err := db.Query(`SELECT relative_path FROM media WHERE relative_path NOT IN (SELECT path FROM _seen_media)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	return paths, rows.Err()
+}
+
 // GetThumbReady returns true if the item has thumb_ready = 1.
 func (r *MediaRepo) GetThumbReady(id int64) (bool, error) {
 	var v int
