@@ -21,3 +21,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Claude Code — machine-local permissions (paths are host-specific)
+.claude/settings.local.json

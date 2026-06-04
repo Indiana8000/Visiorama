@@ -112,11 +112,12 @@ main() {
   rm -f "${TMP}"
   echo "  Binary installed to ${INSTALL_DIR}/visiorama"
 
-  # Create service user
+  # Create service group and user
   if ! id "${SERVICE_USER}" >/dev/null 2>&1; then
-    if command -v adduser >/dev/null 2>&1; then
-      adduser -S -s /sbin/nologin "${SERVICE_USER}" 2>/dev/null \
-        || useradd -r -s /sbin/nologin "${SERVICE_USER}"
+    if command -v addgroup >/dev/null 2>&1 && command -v adduser >/dev/null 2>&1; then
+      # Alpine / BusyBox
+      addgroup -S "${SERVICE_USER}" 2>/dev/null || true
+      adduser -S -G "${SERVICE_USER}" -s /sbin/nologin "${SERVICE_USER}"
     else
       useradd -r -s /sbin/nologin "${SERVICE_USER}"
     fi
