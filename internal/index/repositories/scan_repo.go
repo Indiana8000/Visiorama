@@ -62,6 +62,17 @@ func (r *ScanRepo) UpdateCounters(id string, scanned, indexed, skipped, errCount
 	return err
 }
 
+// GetActive returns the currently queued or running scan job, or nil if none.
+func (r *ScanRepo) GetActive() (*ScanJob, error) {
+	row := r.db.QueryRow(`
+		SELECT id, mode, status, started_at, finished_at,
+		       scanned_files, indexed_files, skipped_files,
+		       error_count, fallback_to_full
+		FROM scan_jobs WHERE status IN ('queued','running')
+		ORDER BY started_at DESC LIMIT 1`)
+	return scanJob(row)
+}
+
 func (r *ScanRepo) HasRunning() (bool, error) {
 	var n int
 	err := r.db.QueryRow(`

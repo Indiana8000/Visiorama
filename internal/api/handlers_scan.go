@@ -72,6 +72,16 @@ func (h *scanHandler) getStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, repoScanJobToDTO(job))
 }
 
+func (h *scanHandler) getActive(w http.ResponseWriter, r *http.Request) {
+	scanRepo := repositories.NewScanRepo(h.store.DB())
+	job, err := scanRepo.GetActive()
+	if err != nil || job == nil {
+		notFound(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, repoScanJobToDTO(job))
+}
+
 func repoScanJobToDTO(j *repositories.ScanJob) ScanJob {
 	return ScanJob{
 		ID:             j.ID,

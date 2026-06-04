@@ -182,6 +182,15 @@ func (r *MediaRepo) CountThumbPending() (int, error) {
 	return n, err
 }
 
+// ResetAllThumbReady sets thumb_ready = 0 for all media items and returns the count affected.
+func (r *MediaRepo) ResetAllThumbReady() (int64, error) {
+	res, err := r.db.Exec(`UPDATE media SET thumb_ready = 0`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (r *MediaRepo) GetMtimeByPath(relativePath string) (int64, bool, error) {
 	var mtime int64
 	err := r.db.QueryRow(`SELECT mtime_unix FROM media WHERE relative_path = ?`, relativePath).Scan(&mtime)

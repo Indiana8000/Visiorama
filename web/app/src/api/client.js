@@ -73,6 +73,11 @@ export const api = {
     return request(`/api/scans/${scanId}`)
   },
 
+  /** GET /api/scans/active — returns active job or throws 404 */
+  getActiveScan() {
+    return request('/api/scans/active')
+  },
+
   /** GET /api/health */
   getHealth() {
     return request('/api/health')

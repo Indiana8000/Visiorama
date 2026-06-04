@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { api } from '../api/client.js'
 
 const emit = defineEmits(['done'])
@@ -78,6 +78,17 @@ async function poll(scanId) {
     errorMsg.value = e.message
   }
 }
+
+onMounted(async () => {
+  try {
+    const active = await api.getActiveScan()
+    job.value = active
+    stopPolling()
+    pollTimer.value = setInterval(() => poll(active.id), POLL_INTERVAL_MS)
+  } catch {
+    // no active scan — stay idle
+  }
+})
 
 async function handleScan(mode) {
   errorMsg.value = null
