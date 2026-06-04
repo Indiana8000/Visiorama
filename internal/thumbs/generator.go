@@ -43,7 +43,8 @@ func Generate(srcPath, cacheDir string, size int) (string, error) {
 
 // generateViaFFmpeg uses ffmpeg to decode and scale the image to a JPEG thumbnail.
 func generateViaFFmpeg(srcPath, cachePath string, size int) (string, error) {
-	filter := fmt.Sprintf("scale='if(gt(iw,ih),%d,-2)':'if(gt(iw,ih),-2,%d)',format=yuvj420p", size, size)
+	// Fit within size×size box, maintain aspect ratio, force even dimensions for JPEG.
+	filter := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease", size, size)
 	cmd := exec.Command("ffmpeg",
 		"-y",
 		"-i", srcPath,

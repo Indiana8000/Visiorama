@@ -45,6 +45,12 @@ func Run(cfg *app.Config) error {
 
 	warmer.Start(ctx)
 
+	if thumbs.FFmpegAvailable() {
+		slog.Info("ffmpeg found", "path", thumbs.FFmpegPath())
+	} else {
+		slog.Warn("ffmpeg not found — HEIC/AVIF/video thumbnails unavailable; install ffmpeg or add it to PATH")
+	}
+
 	handler := api.NewRouter(cfg, store, warmer)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

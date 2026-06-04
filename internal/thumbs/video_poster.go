@@ -20,8 +20,8 @@ func GenerateVideoPoster(srcPath, cacheDir string, size int) (string, error) {
 		return "", fmt.Errorf("mkdir cache: %w", err)
 	}
 
-	// Extract frame at 0s, scale longest edge to `size`, single frame output
-	filter := fmt.Sprintf("scale='if(gt(iw,ih),%d,-2)':'if(gt(iw,ih),-2,%d)'", size, size)
+	// Extract frame at 0s, fit within size×size, maintain aspect ratio.
+	filter := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease", size, size)
 	cmd := exec.Command("ffmpeg",
 		"-y",
 		"-ss", "0",
@@ -41,4 +41,10 @@ func GenerateVideoPoster(srcPath, cacheDir string, size int) (string, error) {
 func FFmpegAvailable() bool {
 	_, err := exec.LookPath("ffmpeg")
 	return err == nil
+}
+
+// FFmpegPath returns the resolved path to the ffmpeg binary, or empty string if not found.
+func FFmpegPath() string {
+	p, _ := exec.LookPath("ffmpeg")
+	return p
 }
