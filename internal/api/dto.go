@@ -88,4 +88,10 @@ type HealthResponse struct {
 	MediaRootAvailable bool   `json:"mediaRootAvailable"`
 	DatabaseAvailable  bool   `json:"databaseAvailable"`
 	UptimeSeconds      int64  `json:"uptimeSeconds"`
+	ThumbWarmer        ThumbWarmerStatus `json:"thumbWarmer"`
+}
+
+type ThumbWarmerStatus struct {
+	Running      bool  `json:"running"`
+	PendingItems int64 `json:"pendingItems"`
 }

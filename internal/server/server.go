@@ -13,7 +13,9 @@ import (
 	"github.com/Indiana8000/visiorama/internal/api"
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index"
+	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/observability"
+	"github.com/Indiana8000/visiorama/internal/thumbs"
 	"github.com/Indiana8000/visiorama/internal/util"
 )
 
@@ -31,7 +33,19 @@ func Run(cfg *app.Config) error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	handler := api.NewRouter(cfg, store)
+	defaultSize := 240
+	if len(cfg.Thumbnails.Sizes) > 0 {
+		defaultSize = cfg.Thumbnails.Sizes[0]
+	}
+	mediaRepo := repositories.NewMediaRepo(store.DB())
+	warmer := thumbs.NewWarmer(mediaRepo, cfg.Library.RootPath, cfg.Thumbnails.CacheDir, defaultSize)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	warmer.Start(ctx)
+
+	handler := api.NewRouter(cfg, store, warmer)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
@@ -41,9 +55,6 @@ func Run(cfg *app.Config) error {
 		WriteTimeout: 0, // streaming endpoints require no write deadline
 		IdleTimeout:  120 * time.Second,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		slog.Info("listening", "addr", addr)

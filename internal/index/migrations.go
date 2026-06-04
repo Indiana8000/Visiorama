@@ -66,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_albums_parent  ON albums(parent_album_id);
 // alterations are run after schema creation; "duplicate column" errors are ignored.
 var alterations = []string{
 	`ALTER TABLE albums ADD COLUMN dir_mtime_ns INTEGER`,
+	`ALTER TABLE media ADD COLUMN thumb_ready INTEGER NOT NULL DEFAULT 0`,
 }
 
 func Migrate(s *Store) error {

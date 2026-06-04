@@ -16,8 +16,14 @@ import (
 )
 
 type mediaHandler struct {
-	cfg   *app.Config
-	store *index.Store
+	cfg    *app.Config
+	store  *index.Store
+	warmer thumbWarmer
+}
+
+// thumbWarmer is the subset of thumbs.Warmer used by the media handler.
+type thumbWarmer interface {
+	Pause()
 }
 
 func (h *mediaHandler) getMetadata(w http.ResponseWriter, r *http.Request) {
@@ -63,6 +69,16 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	mediaRepo2 := repositories.NewMediaRepo(h.store.DB())
+	thumbReady, _ := mediaRepo2.GetThumbReady(id)
+
+	if !thumbReady {
+		// Foreground cache miss — pause the background warmer so it yields CPU
+		if h.warmer != nil {
+			h.warmer.Pause()
+		}
+	}
+
 	var cachePath string
 	switch m.Type {
 	case "image":
@@ -81,6 +97,11 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("thumbnail generation failed, serving placeholder", "id", id, "err", err)
 		servePlaceholder(w)
 		return
+	}
+
+	// Mark ready in DB so the warmer skips this item
+	if !thumbReady {
+		_ = mediaRepo2.SetThumbReady(id, true)
 	}
 
 	f, err := os.Open(cachePath)

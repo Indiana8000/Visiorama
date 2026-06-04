@@ -6,9 +6,10 @@ import (
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/scan"
+	"github.com/Indiana8000/visiorama/internal/thumbs"
 )
 
-func NewRouter(cfg *app.Config, store *index.Store) http.Handler {
+func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer) http.Handler {
 	mux := http.NewServeMux()
 	runner := scan.NewRunner(cfg, store)
 
@@ -17,7 +18,7 @@ func NewRouter(cfg *app.Config, store *index.Store) http.Handler {
 	mux.HandleFunc("GET /api/albums/by-path", ah.getByPath)
 	mux.HandleFunc("GET /api/albums/{albumId}", ah.getByID)
 
-	mh := &mediaHandler{cfg: cfg, store: store}
+	mh := &mediaHandler{cfg: cfg, store: store, warmer: warmer}
 	mux.HandleFunc("GET /api/media/{mediaId}/metadata", mh.getMetadata)
 	mux.HandleFunc("GET /api/media/{mediaId}/thumbnail", mh.getThumbnail)
 	mux.HandleFunc("GET /api/media/{mediaId}/stream", mh.stream)
@@ -26,7 +27,7 @@ func NewRouter(cfg *app.Config, store *index.Store) http.Handler {
 	mux.HandleFunc("POST /api/scans", sh.trigger)
 	mux.HandleFunc("GET /api/scans/{scanId}", sh.getStatus)
 
-	hh := &healthHandler{cfg: cfg, store: store}
+	hh := &healthHandler{cfg: cfg, store: store, warmer: warmer}
 	mux.HandleFunc("GET /api/health", hh.health)
 
 	// SPA fallback — serves embedded Vue dist for all non-API paths

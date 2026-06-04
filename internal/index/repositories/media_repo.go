@@ -146,6 +146,42 @@ func (r *MediaRepo) ListAllPaths() ([]string, error) {
 	return paths, rows.Err()
 }
 
+// GetThumbReady returns true if the item has thumb_ready = 1.
+func (r *MediaRepo) GetThumbReady(id int64) (bool, error) {
+	var v int
+	err := r.db.QueryRow(`SELECT thumb_ready FROM media WHERE id = ?`, id).Scan(&v)
+	return v == 1, err
+}
+
+// SetThumbReady marks a media item's thumb_ready flag.
+func (r *MediaRepo) SetThumbReady(id int64, ready bool) error {
+	v := 0
+	if ready {
+		v = 1
+	}
+	_, err := r.db.Exec(`UPDATE media SET thumb_ready = ? WHERE id = ?`, v, id)
+	return err
+}
+
+// NextThumbPending returns the next media item with thumb_ready = 0, or nil if none.
+func (r *MediaRepo) NextThumbPending() (*Media, error) {
+	row := r.db.QueryRow(`
+		SELECT id, album_id, filename, relative_path, type,
+		       width, height, duration_ms, size_bytes, capture_date,
+		       extension, mime_type, camera_model, lens_model,
+		       gps_lat, gps_lon, orientation, mtime_unix
+		FROM media WHERE thumb_ready = 0 LIMIT 1`)
+	m, err := scanMedia(row)
+	return m, err
+}
+
+// CountThumbPending returns how many media items still need thumbnail generation.
+func (r *MediaRepo) CountThumbPending() (int, error) {
+	var n int
+	err := r.db.QueryRow(`SELECT COUNT(*) FROM media WHERE thumb_ready = 0`).Scan(&n)
+	return n, err
+}
+
 func (r *MediaRepo) GetMtimeByPath(relativePath string) (int64, bool, error) {
 	var mtime int64
 	err := r.db.QueryRow(`SELECT mtime_unix FROM media WHERE relative_path = ?`, relativePath).Scan(&mtime)
