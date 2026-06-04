@@ -46,11 +46,23 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	size := 240
+	validSizes := h.cfg.Thumbnails.Sizes
+	size := validSizes[0]
 	if v := r.URL.Query().Get("size"); v != "" {
 		n, err := strconv.Atoi(v)
-		if err != nil || (n != 240 && n != 480 && n != 960) {
-			badRequest(w, "size must be one of 240, 480, 960")
+		if err != nil {
+			badRequest(w, "size must be a number")
+			return
+		}
+		valid := false
+		for _, s := range validSizes {
+			if n == s {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			badRequest(w, fmt.Sprintf("size must be one of %v", validSizes))
 			return
 		}
 		size = n

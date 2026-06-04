@@ -22,7 +22,7 @@ filtering:
 
 thumbnails:
   cacheDir: /var/lib/visiorama/thumbs
-  sizes: [240, 480, 960]
+  sizes: [240, 480]
 
 limits:
   largeMediaWarningBytes: 104857600

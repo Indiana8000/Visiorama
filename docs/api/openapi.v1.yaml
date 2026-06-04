@@ -191,7 +191,7 @@ paths:
           required: false
           schema:
             type: integer
-            enum: [240, 480, 960]
+            enum: [240, 480]
       responses:
         '200':
           description: Thumbnail binary

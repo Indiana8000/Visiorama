@@ -95,7 +95,7 @@ func defaultConfig() *Config {
 		Scan:   ScanConfig{DefaultMode: "quick", QuickFallbackToFull: true, MaxWorkers: 8},
 		Limits: LimitsConfig{LargeMediaWarningBytes: 104857600},
 		Thumbnails: ThumbnailsConfig{
-			Sizes: []int{240, 480, 960},
+			Sizes: []int{240, 480},
 		},
 		Filtering: FilteringConfig{
 			ExcludePatterns:        []string{".*", "@eaDir", "Thumbs.db"},
