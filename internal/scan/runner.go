@@ -55,9 +55,16 @@ func (r *Runner) TriggerAsync(scanID, mode string) error {
 		var err error
 		fallback := false
 
+		scanRepo := repositories.NewScanRepo(r.store.DB())
+
+		onProgress := func(scanned, indexed, skipped, errors int64) {
+			_ = scanRepo.UpdateCounters(scanID,
+				int(scanned), int(indexed), int(skipped), int(errors), false)
+		}
+
 		switch mode {
 		case "full":
-			stats, err = NewFullScanner(r.cfg, r.store).Run(context.Background(), scanID)
+			stats, err = NewFullScanner(r.cfg, r.store).RunWithProgress(context.Background(), scanID, onProgress)
 		case "quick":
 			stats, err, fallback = func() (*Stats, error, bool) {
 				s, fb, e := NewQuickScanner(r.cfg, r.store).Run(context.Background(), scanID)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index"
@@ -31,7 +32,14 @@ func NewFullScanner(cfg *app.Config, store *index.Store) *FullScanner {
 	return &FullScanner{cfg: cfg, store: store}
 }
 
+// ProgressFunc is called periodically during a full scan with a snapshot of current counters.
+type ProgressFunc func(scanned, indexed, skipped, errors int64)
+
 func (s *FullScanner) Run(ctx context.Context, scanID string) (*Stats, error) {
+	return s.RunWithProgress(ctx, scanID, nil)
+}
+
+func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProgress ProgressFunc) (*Stats, error) {
 	InitExtensions(s.cfg.Filtering.AllowedImageExtensions, s.cfg.Filtering.AllowedVideoExtensions)
 
 	albumRepo := repositories.NewAlbumsRepo(s.store.DB())
@@ -103,6 +111,21 @@ func (s *FullScanner) Run(ctx context.Context, scanID string) (*Stats, error) {
 		workers = 4
 	}
 
+	const progressEveryN = 100
+	var lastReported atomic.Int64
+
+	flush := func() {
+		sc := stats.Scanned.Load()
+		idx := stats.Indexed.Load()
+		sk := stats.Skipped.Load()
+		er := stats.ErrCount.Load()
+		slog.Info("full scan: progress",
+			"scanned", sc, "indexed", idx, "skipped", sk, "errors", er)
+		if onProgress != nil {
+			onProgress(sc, idx, sk, er)
+		}
+	}
+
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
@@ -131,10 +154,30 @@ func (s *FullScanner) Run(ctx context.Context, scanID string) (*Stats, error) {
 					slog.Warn("upsert media", "path", item.relPath, "err", err)
 					continue
 				}
-				stats.Indexed.Add(1)
+				newIdx := stats.Indexed.Add(1)
+				// count-based flush: every progressEveryN indexed files
+				prev := lastReported.Load()
+				if newIdx-prev >= progressEveryN && lastReported.CompareAndSwap(prev, newIdx) {
+					flush()
+				}
 			}
 		}()
 	}
+
+	// Time-based flush: every 3 seconds, independent of count
+	tickCtx, cancelTick := context.WithCancel(ctx)
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				flush()
+			case <-tickCtx.Done():
+				return
+			}
+		}
+	}()
 
 	root := s.cfg.Library.RootPath
 	slog.Info("full scan: starting walk", "root", root)
@@ -211,6 +254,7 @@ func (s *FullScanner) Run(ctx context.Context, scanID string) (*Stats, error) {
 
 	close(jobs)
 	wg.Wait()
+	cancelTick()
 
 	slog.Info("full scan: walk complete",
 		"scanned", stats.Scanned.Load(),
