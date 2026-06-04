@@ -41,6 +41,12 @@ func Run(cfg *app.Config) error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
+	// Mark any jobs left in queued/running state by a previous crash as failed.
+	scanRepo := repositories.NewScanRepo(store.DB())
+	if err := scanRepo.FailStale(time.Now().UTC().Format(time.RFC3339)); err != nil {
+		slog.Warn("failed to clean up stale scan jobs", "err", err)
+	}
+
 	defaultWidth := 320
 	if len(cfg.Thumbnails.Sizes) > 0 {
 		defaultWidth = cfg.Thumbnails.Sizes[0]

@@ -73,6 +73,15 @@ func (r *ScanRepo) GetActive() (*ScanJob, error) {
 	return scanJob(row)
 }
 
+// FailStale marks any queued/running jobs as failed with the given finishedAt timestamp.
+// Called at startup to clean up jobs left hanging by a previous crash.
+func (r *ScanRepo) FailStale(finishedAt string) error {
+	_, err := r.db.Exec(`
+		UPDATE scan_jobs SET status = 'failed', finished_at = ?
+		WHERE status IN ('queued', 'running')`, finishedAt)
+	return err
+}
+
 func (r *ScanRepo) HasRunning() (bool, error) {
 	var n int
 	err := r.db.QueryRow(`
