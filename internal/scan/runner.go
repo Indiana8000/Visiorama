@@ -12,15 +12,27 @@ import (
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 )
 
+// WarmerSuspender is the subset of thumbs.Warmer used by Runner.
+type WarmerSuspender interface {
+	Suspend()
+	Resume()
+}
+
 type Runner struct {
-	mu    sync.Mutex
-	busy  bool
-	cfg   *app.Config
-	store *index.Store
+	mu     sync.Mutex
+	busy   bool
+	cfg    *app.Config
+	store  *index.Store
+	warmer WarmerSuspender
 }
 
 func NewRunner(cfg *app.Config, store *index.Store) *Runner {
 	return &Runner{cfg: cfg, store: store}
+}
+
+// SetWarmer registers the thumb warmer so the runner can suspend it during scans.
+func (r *Runner) SetWarmer(w WarmerSuspender) {
+	r.warmer = w
 }
 
 func (r *Runner) IsRunning() bool {
@@ -45,10 +57,16 @@ func (r *Runner) TriggerAsync(scanID, mode string) error {
 	_ = scanRepo.UpdateStatus(scanID, "running", &startedAt, nil)
 
 	go func() {
+		if r.warmer != nil {
+			r.warmer.Suspend()
+		}
 		defer func() {
 			r.mu.Lock()
 			r.busy = false
 			r.mu.Unlock()
+			if r.warmer != nil {
+				r.warmer.Resume()
+			}
 		}()
 
 		var stats *Stats

@@ -32,9 +32,10 @@ type Warmer struct {
 	defaultWidth  int
 	defaultHeight int
 
-	paused  atomic.Int64 // unix-nano of last Pause() call; 0 = not paused
-	pending atomic.Int64
-	running atomic.Bool
+	paused    atomic.Int64 // unix-nano of last Pause() call; 0 = not paused
+	suspended atomic.Bool  // hard suspend — holds until Resume() called
+	pending   atomic.Int64
+	running   atomic.Bool
 }
 
 func NewWarmer(media MediaSource, rootPath, cacheDir string, defaultWidth, defaultHeight int) *Warmer {
@@ -51,6 +52,17 @@ func NewWarmer(media MediaSource, rootPath, cacheDir string, defaultWidth, defau
 // Called by the foreground thumbnail handler on every cache miss.
 func (w *Warmer) Pause() {
 	w.paused.Store(time.Now().UnixNano())
+}
+
+// Suspend halts the warmer indefinitely until Resume is called.
+// Used during scans to prevent concurrent image decoding from exhausting RAM.
+func (w *Warmer) Suspend() {
+	w.suspended.Store(true)
+}
+
+// Resume lifts a Suspend. Safe to call even if not suspended.
+func (w *Warmer) Resume() {
+	w.suspended.Store(false)
 }
 
 // Pending returns the last known count of items still needing thumbnails.
@@ -88,6 +100,13 @@ func (w *Warmer) loop(ctx context.Context) {
 			// Nothing to do — check again in 60s in case a scan added new items
 			w.running.Store(false)
 			sleep(ctx, 60*time.Second)
+			continue
+		}
+
+		// Check if hard-suspended by a running scan
+		if w.suspended.Load() {
+			w.running.Store(false)
+			sleep(ctx, 5*time.Second)
 			continue
 		}
 

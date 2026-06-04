@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -22,6 +23,13 @@ import (
 func Run(cfg *app.Config) error {
 	observability.SetupLogging()
 	util.RegisterMIMETypes()
+
+	// Keep Go GC aggressive so image buffers are freed promptly.
+	// 3 GiB soft limit — GC collects harder before reaching this threshold.
+	// Override with GOMEMLIMIT env var (in bytes) if needed.
+	if os.Getenv("GOMEMLIMIT") == "" {
+		debug.SetMemoryLimit(3 * 1024 * 1024 * 1024)
+	}
 
 	store, err := index.Open(cfg.Database.SQLitePath)
 	if err != nil {

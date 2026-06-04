@@ -12,6 +12,7 @@ import (
 func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer) http.Handler {
 	mux := http.NewServeMux()
 	runner := scan.NewRunner(cfg, store)
+	runner.SetWarmer(warmer)
 
 	ah := &albumsHandler{store: store}
 	mux.HandleFunc("GET /api/albums/root", ah.getRoot)
