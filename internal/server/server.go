@@ -45,6 +45,10 @@ func Run(cfg *app.Config) error {
 
 	warmer.Start(ctx)
 
+	if err := os.MkdirAll(cfg.Thumbnails.CacheDir, 0755); err != nil {
+		return fmt.Errorf("create thumbnail cache dir: %w", err)
+	}
+
 	if thumbs.FFmpegAvailable() {
 		slog.Info("ffmpeg found", "path", thumbs.FFmpegPath())
 	} else {

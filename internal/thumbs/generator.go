@@ -10,6 +10,44 @@ import (
 	"github.com/disintegration/imaging"
 )
 
+// generateViaFFmpegConvert decodes an unsupported format (HEIC, AVIF, …) to a
+// temporary full-resolution JPEG via ffmpeg, then hands off to the Go imaging
+// path for scaling and EXIF-orientation correction.
+// Two-step avoids all ffmpeg filter-graph / autorotate / stream conflicts.
+func generateViaFFmpegConvert(srcPath, cachePath string, size int) (string, error) {
+	tmp := cachePath + ".tmp.jpg"
+	defer os.Remove(tmp)
+
+	// -noautorotate: prevents ffmpeg from creating an internal rotation filtergraph
+	//   from the Display Matrix side data, which would conflict with any -vf filter.
+	// No -map: HEIC is a multi-stream container (grid tiles + thumbnail); ffmpeg must
+	//   compose them itself to produce the full-resolution image. Forcing -map 0:v:0
+	//   picks only the first tile/thumbnail stream and produces a partial image.
+	// EXIF orientation tag is preserved in the output JPEG for Go's AutoOrientation.
+	cmd := exec.Command("ffmpeg",
+		"-y",
+		"-noautorotate",
+		"-i", srcPath,
+		"-vframes", "1",
+		"-q:v", "2",
+		tmp,
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("ffmpeg decode: %w — %s", err, string(out))
+	}
+
+	src, err := imaging.Open(tmp, imaging.AutoOrientation(true))
+	if err != nil {
+		return "", fmt.Errorf("open ffmpeg intermediate: %w", err)
+	}
+
+	thumb := resizeFit(src, size)
+	if err := imaging.Save(thumb, cachePath, imaging.JPEGQuality(82)); err != nil {
+		return "", fmt.Errorf("save thumb: %w", err)
+	}
+	return cachePath, nil
+}
+
 // Generate resizes the image at srcPath to the given max dimension (longest edge)
 // and writes a JPEG to the cache path. Returns the cache path.
 // Falls back to ffmpeg for formats unsupported by Go's image decoders (e.g. HEIC).
@@ -26,9 +64,9 @@ func Generate(srcPath, cacheDir string, size int) (string, error) {
 
 	src, err := imaging.Open(srcPath, imaging.AutoOrientation(true))
 	if err != nil {
-		// Go decoder failed — try ffmpeg (handles HEIC, AVIF, TIFF, etc.)
+		// Go decoder failed — try ffmpeg (handles HEIC, AVIF, etc.)
 		if FFmpegAvailable() {
-			return generateViaFFmpeg(srcPath, cachePath, size)
+			return generateViaFFmpegConvert(srcPath, cachePath, size)
 		}
 		return "", fmt.Errorf("open image: %w (ffmpeg not available as fallback)", err)
 	}
@@ -41,23 +79,6 @@ func Generate(srcPath, cacheDir string, size int) (string, error) {
 	return cachePath, nil
 }
 
-// generateViaFFmpeg uses ffmpeg to decode and scale the image to a JPEG thumbnail.
-func generateViaFFmpeg(srcPath, cachePath string, size int) (string, error) {
-	// Fit within size×size box, maintain aspect ratio, force even dimensions for JPEG.
-	filter := fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease", size, size)
-	cmd := exec.Command("ffmpeg",
-		"-y",
-		"-i", srcPath,
-		"-vframes", "1",
-		"-vf", filter,
-		"-q:v", "3",
-		cachePath,
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("ffmpeg fallback: %w — %s", err, string(out))
-	}
-	return cachePath, nil
-}
 
 // resizeFit scales img so the longest edge == size, preserving aspect ratio.
 func resizeFit(img image.Image, size int) image.Image {
