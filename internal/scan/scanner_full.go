@@ -315,10 +315,16 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 	return stats, nil
 }
 
-func (s *FullScanner) recomputeCounts(albumRepo *repositories.AlbumsRepo, mediaRepo *repositories.MediaRepo, cache map[string]int64) error {
+func (s *FullScanner) recomputeCounts(albumRepo *repositories.AlbumsRepo, mediaRepo *repositories.MediaRepo, _ map[string]int64) error {
+	// Load current DB state — avoids stale walk-cache IDs after orphan deletion.
+	dbCache, err := albumRepo.ListAllPathIDs()
+	if err != nil {
+		return err
+	}
+
 	// Process deepest paths first so parent recursive counts include children.
-	paths := make([]string, 0, len(cache))
-	for p := range cache {
+	paths := make([]string, 0, len(dbCache))
+	for p := range dbCache {
 		paths = append(paths, p)
 	}
 	sortByDepthDesc(paths)
@@ -326,7 +332,7 @@ func (s *FullScanner) recomputeCounts(albumRepo *repositories.AlbumsRepo, mediaR
 	recursiveCounts := map[int64]int{}
 
 	for _, relPath := range paths {
-		id := cache[relPath]
+		id := dbCache[relPath]
 		direct, err := mediaRepo.CountByAlbum(id)
 		if err != nil {
 			return err
@@ -360,11 +366,20 @@ func buildExcludeSet(patterns []string) map[string]bool {
 func sortByDepthDesc(paths []string) {
 	for i := 0; i < len(paths); i++ {
 		for j := i + 1; j < len(paths); j++ {
-			if strings.Count(paths[i], "/") < strings.Count(paths[j], "/") {
+			if pathDepth(paths[i]) < pathDepth(paths[j]) {
 				paths[i], paths[j] = paths[j], paths[i]
 			}
 		}
 	}
+}
+
+// pathDepth returns the sort depth of a path. Root "" gets -1 so it always
+// sorts after every other path in a deepest-first ordering.
+func pathDepth(p string) int {
+	if p == "" {
+		return -1
+	}
+	return strings.Count(p, "/")
 }
 
 func isExcluded(name string, excludeSet map[string]bool) bool {

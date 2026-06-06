@@ -124,6 +124,25 @@ func (r *AlbumsRepo) ListAllPaths() ([]string, error) {
 	return paths, rows.Err()
 }
 
+// ListAllPathIDs returns relative_path → id for every album including root.
+func (r *AlbumsRepo) ListAllPathIDs() (map[string]int64, error) {
+	rows, err := r.db.Query(`SELECT relative_path, id FROM albums`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	m := map[string]int64{}
+	for rows.Next() {
+		var path string
+		var id int64
+		if err := rows.Scan(&path, &id); err != nil {
+			return nil, err
+		}
+		m[path] = id
+	}
+	return m, rows.Err()
+}
+
 // ListOrphanPaths returns album paths (excluding root) NOT in the _seen_albums temp table.
 // db must be the same *sql.DB that created the temp table.
 func (r *AlbumsRepo) ListOrphanPaths(db *sql.DB) ([]string, error) {
