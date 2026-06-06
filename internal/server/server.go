@@ -14,6 +14,7 @@ import (
 
 	"github.com/Indiana8000/visiorama/internal/api"
 	"github.com/Indiana8000/visiorama/internal/app"
+	"github.com/Indiana8000/visiorama/internal/convert"
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/observability"
@@ -79,6 +80,8 @@ func Run(cfg *app.Config) error {
 	tcRunner := transcode.NewRunner(cfg, store)
 	tcRunner.Start(ctx)
 
+	imgCache := convert.NewCache()
+
 	if err := os.MkdirAll(cfg.Thumbnails.CacheDir, 0755); err != nil {
 		return fmt.Errorf("create thumbnail cache dir: %w", err)
 	}
@@ -94,7 +97,7 @@ func Run(cfg *app.Config) error {
 		slog.Warn("ffmpeg not found — video thumbnails unavailable; install ffmpeg or add it to PATH")
 	}
 
-	handler := api.NewRouter(cfg, store, warmer, tcRunner)
+	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

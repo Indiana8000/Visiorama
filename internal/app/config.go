@@ -21,8 +21,9 @@ type Config struct {
 }
 
 type TranscodeConfig struct {
-	CacheDir   string `yaml:"cacheDir"`
-	TTLHours   int    `yaml:"ttlHours"`
+	CacheDir    string `yaml:"cacheDir"`
+	TTLHours    int    `yaml:"ttlHours"`
+	ImageMaxDim int    `yaml:"imageMaxDim"`
 }
 
 type ServerConfig struct {
@@ -108,7 +109,7 @@ func LoadConfig(path string) (*Config, error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server:    ServerConfig{Host: "0.0.0.0", Port: 8080},
-		Transcode: TranscodeConfig{TTLHours: 48},
+		Transcode: TranscodeConfig{TTLHours: 48, ImageMaxDim: 2400},
 		Scan:   ScanConfig{DefaultMode: "quick", QuickFallbackToFull: true, MaxWorkers: 0},
 		Limits: LimitsConfig{LargeMediaWarningBytes: 104857600},
 		Thumbnails: ThumbnailsConfig{

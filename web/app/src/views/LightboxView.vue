@@ -22,12 +22,16 @@
         <div class="lb-content">
           <img
             v-if="media.type === 'image'"
-            :key="'img-' + media.id"
-            :src="streamSrc"
+            :key="'img-' + media.id + '-' + imgUseConvert"
+            :src="imgSrc"
             :alt="media.filename"
             class="lb-img"
             :class="{ 'lb-img--warn': media.warningLargeMedia }"
+            @error="onImgError"
           />
+          <div v-if="imgConvertFailed" class="lb-transcode-prompt lb-transcode-prompt--error" style="position:static;margin-top:8px;">
+            &#10005; Image could not be loaded.
+          </div>
           <div v-else-if="media.type === 'video'" class="lb-video-wrap">
             <video
               :key="'vid-' + media.id + '-' + transcodeStatus"
@@ -42,15 +46,15 @@
               @loadedmetadata="onVideoMetadata"
             ></video>
             <div v-if="transcodeError && transcodeStatus === null" class="lb-transcode-prompt">
-              <span>&#9888; Browser kann dieses Format nicht abspielen.</span>
-              <button class="lb-transcode-btn" @click="startTranscode">&#128257; Zu MP4 konvertieren</button>
+              <span>&#9888; This format is not supported by your browser.</span>
+              <button class="lb-transcode-btn" @click="startTranscode">&#128257; Convert to MP4</button>
             </div>
             <div v-if="transcodeStatus === 'queued' || transcodeStatus === 'running'" class="lb-transcode-prompt lb-transcode-prompt--progress">
-              <span>&#9696; Konvertierung läuft…</span>
+              <span>&#9696; Converting…</span>
             </div>
             <div v-if="transcodeStatus === 'failed'" class="lb-transcode-prompt lb-transcode-prompt--error">
-              <span>&#10005; Konvertierung fehlgeschlagen: {{ transcodeErrMsg }}</span>
-              <button class="lb-transcode-btn" @click="startTranscode">Nochmal versuchen</button>
+              <span>&#10005; Conversion failed: {{ transcodeErrMsg }}</span>
+              <button class="lb-transcode-btn" @click="startTranscode">Retry</button>
             </div>
           </div>
         </div>
@@ -128,11 +132,19 @@ const BASE = import.meta.env.VITE_API_BASE || ''
 const mediaId = computed(() => parseInt(route.params.id, 10))
 const media = computed(() => store.currentMedia)
 
+const imgConvertFailed = ref(false)
+const imgUseConvert = ref(false)
 const transcodeError = ref(false)
 const transcodeJobId = ref(null)
 const transcodeStatus = ref(null) // null | 'queued' | 'running' | 'success' | 'failed'
 const transcodeErrMsg = ref(null)
 let transcodePoller = null
+
+const imgSrc = computed(() => {
+  if (!media.value) return ''
+  if (imgUseConvert.value) return api.convertUrl(media.value.id)
+  return api.streamUrl(media.value.id)
+})
 
 const streamSrc = computed(() => {
   if (transcodeStatus.value === 'success' && media.value) {
@@ -184,6 +196,17 @@ function formatDuration(ms) {
   return `${s}s`
 }
 
+function onImgError(e) {
+  if (imgUseConvert.value) {
+    const expectedSrc = new URL(api.convertUrl(media.value.id), window.location.href).href
+    if (e.target.src === expectedSrc) {
+      imgConvertFailed.value = true
+    }
+    return
+  }
+  imgUseConvert.value = true
+}
+
 function onVideoError() {
   if (transcodeStatus.value === 'success') return
   transcodeError.value = true
@@ -217,7 +240,7 @@ function pollTranscode() {
       const job = await api.getTranscodeStatus(transcodeJobId.value)
       transcodeStatus.value = job.status
       if (job.status === 'failed') {
-        transcodeErrMsg.value = job.error || 'Unbekannter Fehler'
+        transcodeErrMsg.value = job.error || 'Unknown error'
         clearInterval(transcodePoller)
       } else if (job.status === 'success') {
         clearInterval(transcodePoller)
@@ -230,6 +253,8 @@ function pollTranscode() {
 
 function resetTranscodeState() {
   clearInterval(transcodePoller)
+  imgUseConvert.value = false
+  imgConvertFailed.value = false
   transcodeError.value = false
   transcodeJobId.value = null
   transcodeStatus.value = null

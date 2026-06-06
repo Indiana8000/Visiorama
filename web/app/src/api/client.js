@@ -78,6 +78,11 @@ export const api = {
     return request('/api/scans/active')
   },
 
+  /** GET /api/media/:id/convert — direct URL for <img src>, returns JPEG */
+  convertUrl(mediaId) {
+    return `${BASE}/api/media/${mediaId}/convert`
+  },
+
   /** POST /api/media/:id/transcode — returns { jobId } */
   triggerTranscode(mediaId) {
     return request(`/api/media/${mediaId}/transcode`, { method: 'POST' })
