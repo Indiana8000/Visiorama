@@ -3,10 +3,12 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
+	"github.com/Indiana8000/visiorama/internal/util"
 )
 
 type albumsHandler struct {
@@ -101,6 +103,9 @@ func (h *albumsHandler) buildAndWrite(w http.ResponseWriter, albumRepo *reposito
 		internalError(w)
 		return
 	}
+	sort.Slice(children, func(i, j int) bool {
+		return util.NaturalLess(children[i].Name, children[j].Name)
+	})
 	childTiles := make([]AlbumTile, len(children))
 	for i, c := range children {
 		parentID := c.ParentAlbumID
@@ -135,6 +140,9 @@ func (h *albumsHandler) buildAndWrite(w http.ResponseWriter, albumRepo *reposito
 		internalError(w)
 		return
 	}
+	sort.Slice(mediaRows, func(i, j int) bool {
+		return util.NaturalLess(mediaRows[i].Filename, mediaRows[j].Filename)
+	})
 	mediaSummaries := make([]MediaSummary, len(mediaRows))
 	for i, m := range mediaRows {
 		mediaSummaries[i] = repoMediaToSummary(&m)

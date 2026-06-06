@@ -51,7 +51,6 @@ func (r *MediaRepo) ListByAlbum(albumID int64, offset, limit int) ([]Media, erro
 		       extension, mime_type, camera_model, lens_model,
 		       gps_lat, gps_lon, orientation, mtime_unix
 		FROM media WHERE album_id = ?
-		ORDER BY capture_date ASC, filename ASC
 		LIMIT ? OFFSET ?`, albumID, limit, offset)
 	if err != nil {
 		return nil, err
