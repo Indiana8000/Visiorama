@@ -28,17 +28,31 @@
             class="lb-img"
             :class="{ 'lb-img--warn': media.warningLargeMedia }"
           />
-          <video
-            v-else-if="media.type === 'video'"
-            :key="'vid-' + media.id"
-            :src="streamSrc"
-            :poster="thumbSrc"
-            :width="media.width || undefined"
-            :height="media.height || undefined"
-            controls
-            class="lb-video"
-            preload="metadata"
-          ></video>
+          <div v-else-if="media.type === 'video'" class="lb-video-wrap">
+            <video
+              :key="'vid-' + media.id + '-' + transcodeStatus"
+              :src="streamSrc"
+              :poster="thumbSrc"
+              :width="media.width || undefined"
+              :height="media.height || undefined"
+              controls
+              class="lb-video"
+              preload="metadata"
+              @error="onVideoError"
+              @loadedmetadata="onVideoMetadata"
+            ></video>
+            <div v-if="transcodeError && transcodeStatus === null" class="lb-transcode-prompt">
+              <span>&#9888; Browser kann dieses Format nicht abspielen.</span>
+              <button class="lb-transcode-btn" @click="startTranscode">&#128257; Zu MP4 konvertieren</button>
+            </div>
+            <div v-if="transcodeStatus === 'queued' || transcodeStatus === 'running'" class="lb-transcode-prompt lb-transcode-prompt--progress">
+              <span>&#9696; Konvertierung läuft…</span>
+            </div>
+            <div v-if="transcodeStatus === 'failed'" class="lb-transcode-prompt lb-transcode-prompt--error">
+              <span>&#10005; Konvertierung fehlgeschlagen: {{ transcodeErrMsg }}</span>
+              <button class="lb-transcode-btn" @click="startTranscode">Nochmal versuchen</button>
+            </div>
+          </div>
         </div>
 
         <button
@@ -95,7 +109,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGalleryStore } from '../stores/gallery.js'
 import { api } from '../api/client.js'
@@ -114,7 +128,18 @@ const BASE = import.meta.env.VITE_API_BASE || ''
 const mediaId = computed(() => parseInt(route.params.id, 10))
 const media = computed(() => store.currentMedia)
 
-const streamSrc = computed(() => media.value ? api.streamUrl(media.value.id) : '')
+const transcodeError = ref(false)
+const transcodeJobId = ref(null)
+const transcodeStatus = ref(null) // null | 'queued' | 'running' | 'success' | 'failed'
+const transcodeErrMsg = ref(null)
+let transcodePoller = null
+
+const streamSrc = computed(() => {
+  if (transcodeStatus.value === 'success' && media.value) {
+    return api.transcodeStreamUrl(media.value.id)
+  }
+  return media.value ? api.streamUrl(media.value.id) : ''
+})
 const thumbSrc  = computed(() => media.value ? api.thumbnailUrl(media.value.id, 480) : '')
 
 // Sibling navigation — load parent album if not already in store
@@ -159,7 +184,60 @@ function formatDuration(ms) {
   return `${s}s`
 }
 
+function onVideoError() {
+  if (transcodeStatus.value === 'success') return
+  transcodeError.value = true
+}
+
+function onVideoMetadata(e) {
+  if (transcodeStatus.value === 'success') return
+  const vid = e.target
+  if (vid.videoWidth === 0 && vid.duration > 0) {
+    transcodeError.value = true
+  }
+}
+
+async function startTranscode() {
+  transcodeStatus.value = 'queued'
+  transcodeErrMsg.value = null
+  try {
+    const res = await api.triggerTranscode(media.value.id)
+    transcodeJobId.value = res.jobId
+    pollTranscode()
+  } catch (e) {
+    transcodeStatus.value = 'failed'
+    transcodeErrMsg.value = e.message
+  }
+}
+
+function pollTranscode() {
+  clearInterval(transcodePoller)
+  transcodePoller = setInterval(async () => {
+    try {
+      const job = await api.getTranscodeStatus(transcodeJobId.value)
+      transcodeStatus.value = job.status
+      if (job.status === 'failed') {
+        transcodeErrMsg.value = job.error || 'Unbekannter Fehler'
+        clearInterval(transcodePoller)
+      } else if (job.status === 'success') {
+        clearInterval(transcodePoller)
+      }
+    } catch {
+      clearInterval(transcodePoller)
+    }
+  }, 2000)
+}
+
+function resetTranscodeState() {
+  clearInterval(transcodePoller)
+  transcodeError.value = false
+  transcodeJobId.value = null
+  transcodeStatus.value = null
+  transcodeErrMsg.value = null
+}
+
 async function load(id) {
+  resetTranscodeState()
   await store.fetchMediaMetadata(id)
   // Load parent album for sibling nav if not already loaded or stale
   if (store.currentMedia && store.currentAlbum?.album?.id !== store.currentMedia.albumId) {
@@ -178,7 +256,10 @@ function onKey(e) {
   if (e.key === 'Escape') goBack()
 }
 
-onUnmounted(() => window.removeEventListener('keydown', onKey))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKey)
+  clearInterval(transcodePoller)
+})
 watch(mediaId, (id) => load(id))
 </script>
 
@@ -242,12 +323,43 @@ watch(mediaId, (id) => load(id))
 }
 .lb-img--warn { opacity: 0.9; }
 
+.lb-video-wrap {
+  position: relative;
+  width: 100%;
+}
 .lb-video {
   width: 100%;
   max-height: 75vh;
   display: block;
   background: #000;
 }
+.lb-transcode-prompt {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.lb-transcode-prompt--progress { color: #aaa; }
+.lb-transcode-prompt--error { color: #f08080; }
+.lb-transcode-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lb-transcode-btn:hover { opacity: 0.85; }
 
 .lb-nav {
   position: absolute;

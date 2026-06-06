@@ -78,6 +78,21 @@ export const api = {
     return request('/api/scans/active')
   },
 
+  /** POST /api/media/:id/transcode — returns { jobId } */
+  triggerTranscode(mediaId) {
+    return request(`/api/media/${mediaId}/transcode`, { method: 'POST' })
+  },
+
+  /** GET /api/transcode-jobs/:jobId */
+  getTranscodeStatus(jobId) {
+    return request(`/api/transcode-jobs/${jobId}`)
+  },
+
+  /** GET /api/media/:id/transcode/stream — direct URL for <video src> */
+  transcodeStreamUrl(mediaId) {
+    return `${BASE}/api/media/${mediaId}/transcode/stream`
+  },
+
   /** GET /api/health */
   getHealth() {
     return request('/api/health')

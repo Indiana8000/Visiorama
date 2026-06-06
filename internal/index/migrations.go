@@ -67,6 +67,16 @@ CREATE INDEX IF NOT EXISTS idx_albums_parent  ON albums(parent_album_id);
 var alterations = []string{
 	`ALTER TABLE albums ADD COLUMN dir_mtime_ns INTEGER`,
 	`ALTER TABLE media ADD COLUMN thumb_ready INTEGER NOT NULL DEFAULT 0`,
+	`CREATE TABLE IF NOT EXISTS transcode_jobs (
+		id          TEXT    PRIMARY KEY,
+		media_id    INTEGER NOT NULL REFERENCES media(id),
+		status      TEXT    NOT NULL CHECK(status IN ('queued','running','success','failed')),
+		output_path TEXT,
+		error       TEXT,
+		created_at  TEXT    NOT NULL,
+		finished_at TEXT
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_transcode_jobs_media_id ON transcode_jobs(media_id)`,
 }
 
 func Migrate(s *Store) error {

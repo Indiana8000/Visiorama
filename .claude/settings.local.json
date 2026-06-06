@@ -14,7 +14,8 @@
       "Bash(go build *)",
       "Bash(go env *)",
       "Bash(grep -r \"MemoryStatus\\\\|GlobalMemory\\\\|MEMORYSTATUSEX\" \"$\\(go env GOPATH\\)/pkg/mod/golang.org/x/sys@v0.42.0/windows/\")",
-      "Bash(ffprobe *)"
+      "Bash(ffprobe *)",
+      "Bash(npm run *)"
     ]
   }
 }

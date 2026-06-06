@@ -18,6 +18,7 @@ import (
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/observability"
 	"github.com/Indiana8000/visiorama/internal/thumbs"
+	"github.com/Indiana8000/visiorama/internal/transcode"
 	"github.com/Indiana8000/visiorama/internal/util"
 )
 
@@ -52,9 +53,14 @@ func Run(cfg *app.Config) error {
 	}
 
 	// Mark any jobs left in queued/running state by a previous crash as failed.
+	now := time.Now().UTC().Format(time.RFC3339)
 	scanRepo := repositories.NewScanRepo(store.DB())
-	if err := scanRepo.FailStale(time.Now().UTC().Format(time.RFC3339)); err != nil {
+	if err := scanRepo.FailStale(now); err != nil {
 		slog.Warn("failed to clean up stale scan jobs", "err", err)
+	}
+	tcRepo := repositories.NewTranscodeRepo(store.DB())
+	if err := tcRepo.FailStale(now); err != nil {
+		slog.Warn("failed to clean up stale transcode jobs", "err", err)
 	}
 
 	defaultWidth := 320
@@ -69,6 +75,9 @@ func Run(cfg *app.Config) error {
 	defer stop()
 
 	warmer.Start(ctx)
+
+	tcRunner := transcode.NewRunner(cfg, store)
+	tcRunner.Start(ctx)
 
 	if err := os.MkdirAll(cfg.Thumbnails.CacheDir, 0755); err != nil {
 		return fmt.Errorf("create thumbnail cache dir: %w", err)
@@ -85,7 +94,7 @@ func Run(cfg *app.Config) error {
 		slog.Warn("ffmpeg not found — video thumbnails unavailable; install ffmpeg or add it to PATH")
 	}
 
-	handler := api.NewRouter(cfg, store, warmer)
+	handler := api.NewRouter(cfg, store, warmer, tcRunner)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

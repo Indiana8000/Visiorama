@@ -15,8 +15,14 @@ type Config struct {
 	Scan       ScanConfig       `yaml:"scan"`
 	Filtering  FilteringConfig  `yaml:"filtering"`
 	Thumbnails ThumbnailsConfig `yaml:"thumbnails"`
+	Transcode  TranscodeConfig  `yaml:"transcode"`
 	Limits     LimitsConfig     `yaml:"limits"`
 	Database   DatabaseConfig   `yaml:"database"`
+}
+
+type TranscodeConfig struct {
+	CacheDir   string `yaml:"cacheDir"`
+	TTLHours   int    `yaml:"ttlHours"`
 }
 
 type ServerConfig struct {
@@ -101,7 +107,8 @@ func LoadConfig(path string) (*Config, error) {
 
 func defaultConfig() *Config {
 	return &Config{
-		Server: ServerConfig{Host: "0.0.0.0", Port: 8080},
+		Server:    ServerConfig{Host: "0.0.0.0", Port: 8080},
+		Transcode: TranscodeConfig{TTLHours: 48},
 		Scan:   ScanConfig{DefaultMode: "quick", QuickFallbackToFull: true, MaxWorkers: 0},
 		Limits: LimitsConfig{LargeMediaWarningBytes: 104857600},
 		Thumbnails: ThumbnailsConfig{
