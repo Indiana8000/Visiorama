@@ -156,7 +156,7 @@ library:
 scan:
   defaultMode: quick
   quickFallbackToFull: true
-  maxWorkers: 4
+  maxWorkers: 0  # 0 = auto (min of CPU count and RAM/512MiB); >0 caps the auto value
 
 filtering:
   excludePatterns: [".*", "@eaDir", "Thumbs.db", "#recycle"]

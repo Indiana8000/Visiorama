@@ -12,11 +12,7 @@ scan:
   maxWorkers: 0  # 0 = auto (min of CPU count and RAM/512MiB); >0 caps the auto value
 
 filtering:
-  excludePatterns:
-    - ".*"
-    - "@eaDir"
-    - "Thumbs.db"
-    - "#recycle"
+  excludePatterns: [".*", "@eaDir", "Thumbs.db", "#recycle"]
   allowedImageExtensions: ["jpg", "jpeg", "png", "webp", "gif", "heic", "tif", "tiff", "avif"]
   allowedVideoExtensions: ["mp4", "mkv", "mov", "webm", "avi", "m4v"]
   enableMimeSniff: true
