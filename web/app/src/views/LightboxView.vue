@@ -45,6 +45,7 @@
               controls
               class="lb-video"
               preload="metadata"
+              :autoplay="transcodeStatus === 'success'"
               @error="onVideoError"
               @loadedmetadata="onVideoMetadata"
             ></video>
