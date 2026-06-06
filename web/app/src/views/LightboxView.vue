@@ -20,17 +20,20 @@
         >&#8249;</button>
 
         <div class="lb-content">
-          <img
-            v-if="media.type === 'image'"
-            :key="'img-' + media.id + '-' + imgUseConvert"
-            :src="imgSrc"
-            :alt="media.filename"
-            class="lb-img"
-            :class="{ 'lb-img--warn': media.warningLargeMedia }"
-            @error="onImgError"
-          />
-          <div v-if="imgConvertFailed" class="lb-transcode-prompt lb-transcode-prompt--error" style="position:static;margin-top:8px;">
-            &#10005; Image could not be loaded.
+          <div v-if="media.type === 'image'" class="lb-img-wrap">
+            <img
+              :key="'img-' + media.id + '-' + imgUseConvert"
+              :src="imgSrc"
+              :alt="media.filename"
+              class="lb-img"
+              :class="{ 'lb-img--warn': media.warningLargeMedia }"
+              @error="onImgError"
+              @load="onImgLoad"
+            />
+            <span v-if="imgUseConvert && imgConvertLoaded && !imgConvertFailed" class="lb-img-badge">&#9432; Reduced quality</span>
+            <div v-if="imgConvertFailed" class="lb-transcode-prompt lb-transcode-prompt--error" style="position:static;margin-top:8px;">
+              &#10005; Image could not be loaded.
+            </div>
           </div>
           <div v-else-if="media.type === 'video'" class="lb-video-wrap">
             <video
@@ -134,6 +137,7 @@ const media = computed(() => store.currentMedia)
 
 const imgConvertFailed = ref(false)
 const imgUseConvert = ref(false)
+const imgConvertLoaded = ref(false)
 const transcodeError = ref(false)
 const transcodeJobId = ref(null)
 const transcodeStatus = ref(null) // null | 'queued' | 'running' | 'success' | 'failed'
@@ -196,6 +200,10 @@ function formatDuration(ms) {
   return `${s}s`
 }
 
+function onImgLoad() {
+  if (imgUseConvert.value) imgConvertLoaded.value = true
+}
+
 function onImgError(e) {
   if (imgUseConvert.value) {
     const expectedSrc = new URL(api.convertUrl(media.value.id), window.location.href).href
@@ -255,6 +263,7 @@ function resetTranscodeState() {
   clearInterval(transcodePoller)
   imgUseConvert.value = false
   imgConvertFailed.value = false
+  imgConvertLoaded.value = false
   transcodeError.value = false
   transcodeJobId.value = null
   transcodeStatus.value = null
@@ -340,6 +349,13 @@ watch(mediaId, (id) => load(id))
   max-height: 75vh;
 }
 
+.lb-img-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
 .lb-img {
   max-width: 100%;
   max-height: 75vh;
@@ -347,6 +363,17 @@ watch(mediaId, (id) => load(id))
   display: block;
 }
 .lb-img--warn { opacity: 0.9; }
+.lb-img-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.6);
+  color: #ccc;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  pointer-events: none;
+}
 
 .lb-video-wrap {
   position: relative;
