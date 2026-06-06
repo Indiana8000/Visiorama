@@ -13,7 +13,8 @@
       "mcp__plugin_context-mode_context-mode__ctx_execute",
       "Bash(go build *)",
       "Bash(go env *)",
-      "Bash(grep -r \"MemoryStatus\\\\|GlobalMemory\\\\|MEMORYSTATUSEX\" \"$\\(go env GOPATH\\)/pkg/mod/golang.org/x/sys@v0.42.0/windows/\")"
+      "Bash(grep -r \"MemoryStatus\\\\|GlobalMemory\\\\|MEMORYSTATUSEX\" \"$\\(go env GOPATH\\)/pkg/mod/golang.org/x/sys@v0.42.0/windows/\")",
+      "Bash(ffprobe *)"
     ]
   }
 }

@@ -33,6 +33,8 @@
             :key="'vid-' + media.id"
             :src="streamSrc"
             :poster="thumbSrc"
+            :width="media.width || undefined"
+            :height="media.height || undefined"
             controls
             class="lb-video"
             preload="metadata"

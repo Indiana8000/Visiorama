@@ -229,7 +229,7 @@ func ExtractVideoMeta(path, relPath, filename, ext, mimeType string, albumID int
 		return nil, false
 	}
 	t := info.ModTime().UTC().Format(time.RFC3339)
-	return &repositories.Media{
+	m := &repositories.Media{
 		AlbumID:      albumID,
 		Filename:     filename,
 		RelativePath: relPath,
@@ -239,5 +239,84 @@ func ExtractVideoMeta(path, relPath, filename, ext, mimeType string, albumID int
 		SizeBytes:    info.Size(),
 		CaptureDate:  &t,
 		MtimeUnix:    info.ModTime().Unix(),
-	}, info.Size() >= largeWarningBytes
+	}
+
+	if bin, err := exec.LookPath("ffprobe"); err == nil {
+		// Separate calls avoid mixed csv format issues (stream vs format sections produce trailing commas).
+
+		// Width + height + rotation (side_data Display Matrix)
+		if out, err := exec.Command(bin,
+			"-v", "error",
+			"-select_streams", "v:0",
+			"-show_entries", "stream=width,height:stream_side_data=rotation",
+			"-of", "default=noprint_wrappers=1:nokey=0",
+			path,
+		).Output(); err == nil {
+			w, h, rot := 0, 0, 0
+			for _, line := range strings.Split(string(out), "\n") {
+				line = strings.TrimSpace(line)
+				if v, ok := strings.CutPrefix(line, "width="); ok {
+					w, _ = strconv.Atoi(v)
+				} else if v, ok := strings.CutPrefix(line, "height="); ok {
+					h, _ = strconv.Atoi(v)
+				} else if v, ok := strings.CutPrefix(line, "rotation="); ok {
+					rot, _ = strconv.Atoi(v)
+				}
+			}
+			if w > 0 && h > 0 {
+				// rotation ±90/±270 means the frame is sideways — swap to logical dimensions
+				absRot := rot
+				if absRot < 0 {
+					absRot = -absRot
+				}
+				if absRot == 90 || absRot == 270 {
+					w, h = h, w
+				}
+				m.Width = &w
+				m.Height = &h
+			}
+		}
+
+		// Duration
+		if out, err := exec.Command(bin,
+			"-v", "error",
+			"-show_entries", "format=duration",
+			"-of", "csv=p=0",
+			path,
+		).Output(); err == nil {
+			if sec, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64); err == nil && sec > 0 {
+				ms := int64(sec * 1000)
+				m.DurationMs = &ms
+			}
+		}
+
+		// Camera model — tries standard EXIF tags, then QuickTime-specific tags (iPhone MOV)
+		if out, err := exec.Command(bin,
+			"-v", "error",
+			"-show_entries", "format_tags=com.apple.quicktime.model,com.apple.quicktime.make,model,make",
+			"-of", "default=noprint_wrappers=1:nokey=0",
+			path,
+		).Output(); err == nil {
+			model, make_ := "", ""
+			for _, line := range strings.Split(string(out), "\n") {
+				line = strings.TrimSpace(line)
+				if v, ok := strings.CutPrefix(line, "TAG:com.apple.quicktime.model="); ok && v != "" {
+					model = v
+				} else if v, ok := strings.CutPrefix(line, "TAG:model="); ok && v != "" && model == "" {
+					model = v
+				} else if v, ok := strings.CutPrefix(line, "TAG:com.apple.quicktime.make="); ok && v != "" {
+					make_ = v
+				} else if v, ok := strings.CutPrefix(line, "TAG:make="); ok && v != "" && make_ == "" {
+					make_ = v
+				}
+			}
+			if model != "" {
+				m.CameraModel = &model
+			} else if make_ != "" {
+				m.CameraModel = &make_
+			}
+		}
+	}
+
+	return m, info.Size() >= largeWarningBytes
 }
