@@ -9,5 +9,5 @@ func totalPhysicalBytes() uint64 {
 	if err := unix.Sysinfo(&info); err != nil {
 		return 0
 	}
-	return info.Totalram * uint64(info.Unit)
+	return uint64(info.Totalram) * uint64(info.Unit)
 }
