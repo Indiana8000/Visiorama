@@ -8,7 +8,7 @@
         class="media-tile__img"
       />
       <span v-if="media.type === 'video'" class="media-tile__badge media-tile__badge--video">
-        &#9654; video
+        &#9654; video<template v-if="videoDuration">&nbsp;{{ videoDuration }}</template>
       </span>
     </div>
     <div class="media-tile__name" :title="media.filename">{{ media.filename }}</div>
@@ -31,6 +31,17 @@ const thumbSrc = computed(() => {
   const url = props.media.thumbnailUrl
   if (!url) return ''
   return url.startsWith('http') ? url : `${BASE}${url}`
+})
+
+const videoDuration = computed(() => {
+  const ms = props.media.durationMs
+  if (!ms) return ''
+  const s = Math.round(ms / 1000)
+  const m = Math.floor(s / 60)
+  const h = Math.floor(m / 60)
+  if (h > 0) return `${h}h ${m % 60}m ${s % 60}s`
+  if (m > 0) return `${m}m ${s % 60}s`
+  return `${s}s`
 })
 </script>
 
