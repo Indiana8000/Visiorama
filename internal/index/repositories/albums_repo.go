@@ -178,15 +178,35 @@ func (r *AlbumsRepo) DeleteByPath(relPath string) error {
 }
 
 func (r *AlbumsRepo) CoverMediaID(albumID int64) (*int64, error) {
-	row := r.db.QueryRow(`
-		SELECT id FROM media WHERE album_id = ? ORDER BY capture_date ASC, filename ASC LIMIT 1`, albumID)
-	var id int64
-	if err := row.Scan(&id); err == sql.ErrNoRows {
+	return r.coverMediaIDRecursive(albumID, 0)
+}
+
+// coverMediaIDRecursive finds the first media item in albumID, then recursively
+// searches child albums (breadth-first, alphabetical) when no direct media exists.
+// depth guards against cycles from corrupt parent_album_id data.
+func (r *AlbumsRepo) coverMediaIDRecursive(albumID int64, depth int) (*int64, error) {
+	if depth > 32 {
 		return nil, nil
-	} else if err != nil {
+	}
+	row := r.db.QueryRow(`
+		SELECT id FROM media WHERE album_id = ? ORDER BY filename ASC LIMIT 1`, albumID)
+	var id int64
+	if err := row.Scan(&id); err == nil {
+		return &id, nil
+	} else if err != sql.ErrNoRows {
 		return nil, err
 	}
-	return &id, nil
+	// No direct media — recurse into child albums ordered by name.
+	children, err := r.ListChildren(albumID)
+	if err != nil {
+		return nil, err
+	}
+	for _, child := range children {
+		if coverID, err := r.coverMediaIDRecursive(child.ID, depth+1); err == nil && coverID != nil {
+			return coverID, nil
+		}
+	}
+	return nil, nil
 }
 
 func scanAlbum(row *sql.Row) (*Album, error) {
