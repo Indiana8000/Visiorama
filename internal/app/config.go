@@ -102,7 +102,7 @@ func LoadConfig(path string) (*Config, error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{Host: "0.0.0.0", Port: 8080},
-		Scan:   ScanConfig{DefaultMode: "quick", QuickFallbackToFull: true, MaxWorkers: 8},
+		Scan:   ScanConfig{DefaultMode: "quick", QuickFallbackToFull: true, MaxWorkers: 0},
 		Limits: LimitsConfig{LargeMediaWarningBytes: 104857600},
 		Thumbnails: ThumbnailsConfig{
 			Sizes:        []int{320, 640},

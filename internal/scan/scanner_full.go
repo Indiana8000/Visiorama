@@ -119,9 +119,6 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 
 	jobs := make(chan workItem, 256)
 	workers := s.cfg.Scan.MaxWorkers
-	if workers < 1 {
-		workers = 4
-	}
 
 	const progressEveryN = 100
 	var lastReported atomic.Int64

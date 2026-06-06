@@ -126,9 +126,6 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 
 	jobs := make(chan workItem, 256)
 	workers := s.cfg.Scan.MaxWorkers
-	if workers < 1 {
-		workers = 4
-	}
 
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {

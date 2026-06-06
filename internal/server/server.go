@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/debug"
 	"syscall"
 	"time"
@@ -24,12 +25,21 @@ func Run(cfg *app.Config) error {
 	observability.SetupLogging()
 	util.RegisterMIMETypes()
 
-	// Keep Go GC aggressive so image buffers are freed promptly.
-	// 3 GiB soft limit — GC collects harder before reaching this threshold.
+	// Set GOMEMLIMIT to 90% of physical RAM so GC collects aggressively
+	// before the OS starts paging. Falls back to 3 GiB if RAM can't be read.
 	// Override with GOMEMLIMIT env var (in bytes) if needed.
 	if os.Getenv("GOMEMLIMIT") == "" {
-		debug.SetMemoryLimit(3 * 1024 * 1024 * 1024)
+		const fallback = 3 * 1024 * 1024 * 1024
+		limit := int64(fallback)
+		if total := totalPhysicalBytes(); total > 0 {
+			limit = int64(float64(total) * 0.9)
+		}
+		debug.SetMemoryLimit(limit)
+		slog.Info("set GOMEMLIMIT", "limit", fmt.Sprintf("%d MiB", limit/(1024*1024)))
 	}
+
+	cfg.Scan.MaxWorkers = resolveWorkers(cfg.Scan.MaxWorkers)
+	slog.Info("scan workers", "count", cfg.Scan.MaxWorkers)
 
 	store, err := index.Open(cfg.Database.SQLitePath)
 	if err != nil {
@@ -95,4 +105,27 @@ func Run(cfg *app.Config) error {
 	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutCtx)
+}
+
+// resolveWorkers computes the effective worker count:
+//   - auto = min(numCPU, totalRAM/512MiB); RAM unknown → numCPU only
+//   - maxCfg > 0 caps the result; maxCfg == 0 means no cap (pure auto)
+//   - floor is 1
+func resolveWorkers(maxCfg int) int {
+	const ramPerWorker = 512 * 1024 * 1024
+
+	workers := runtime.NumCPU()
+	if total := totalPhysicalBytes(); total > 0 {
+		byRAM := int(total / ramPerWorker)
+		if byRAM < workers {
+			workers = byRAM
+		}
+	}
+	if maxCfg > 0 && maxCfg < workers {
+		workers = maxCfg
+	}
+	if workers < 1 {
+		workers = 1
+	}
+	return workers
 }
