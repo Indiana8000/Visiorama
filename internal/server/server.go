@@ -74,10 +74,15 @@ func Run(cfg *app.Config) error {
 		return fmt.Errorf("create thumbnail cache dir: %w", err)
 	}
 
+	if thumbs.ImageMagickAvailable() {
+		slog.Info("imagemagick found", "path", thumbs.ImageMagickPath())
+	} else {
+		slog.Warn("imagemagick not found — magick not in PATH", "PATH", os.Getenv("PATH"))
+	}
 	if thumbs.FFmpegAvailable() {
 		slog.Info("ffmpeg found", "path", thumbs.FFmpegPath())
 	} else {
-		slog.Warn("ffmpeg not found — HEIC/AVIF/video thumbnails unavailable; install ffmpeg or add it to PATH")
+		slog.Warn("ffmpeg not found — video thumbnails unavailable; install ffmpeg or add it to PATH")
 	}
 
 	handler := api.NewRouter(cfg, store, warmer)

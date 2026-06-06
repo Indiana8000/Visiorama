@@ -51,3 +51,15 @@ func FFmpegPath() string {
 	p, _ := exec.LookPath("ffmpeg")
 	return p
 }
+
+// ImageMagickAvailable returns true if the ImageMagick "magick" binary is found in PATH.
+func ImageMagickAvailable() bool {
+	_, err := exec.LookPath("magick")
+	return err == nil
+}
+
+// ImageMagickPath returns the resolved path to the "magick" binary, or empty string.
+func ImageMagickPath() string {
+	p, _ := exec.LookPath("magick")
+	return p
+}

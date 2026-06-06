@@ -10,6 +10,32 @@ import (
 	"github.com/disintegration/imaging"
 )
 
+// generateViaImageMagickConvert decodes an unsupported format via ImageMagick to a
+// temporary JPEG, then hands off to the Go imaging path for scaling/orientation.
+func generateViaImageMagickConvert(srcPath, cachePath string, width, height int) (string, error) {
+	bin := ImageMagickPath()
+	tmp := cachePath + ".im.tmp.jpg"
+	defer os.Remove(tmp)
+
+	// -flatten merges all layers/frames into one (handles multi-layer PSD, animated GIF, etc.)
+	// Must come after input — ImageMagick processes args left-to-right.
+	cmd := exec.Command(bin, srcPath, "-flatten", tmp)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("imagemagick decode: %w — %s", err, string(out))
+	}
+
+	src, err := imaging.Open(tmp, imaging.AutoOrientation(true))
+	if err != nil {
+		return "", fmt.Errorf("open imagemagick intermediate: %w", err)
+	}
+
+	thumb := resizeCrop(src, width, height)
+	if err := imaging.Save(thumb, cachePath, imaging.JPEGQuality(82)); err != nil {
+		return "", fmt.Errorf("save thumb: %w", err)
+	}
+	return cachePath, nil
+}
+
 // generateViaFFmpegConvert decodes an unsupported format (HEIC, AVIF, …) to a
 // temporary full-resolution JPEG via ffmpeg, then hands off to the Go imaging
 // path for scaling and EXIF-orientation correction.
@@ -64,11 +90,15 @@ func Generate(srcPath, cacheDir string, width, height int) (string, error) {
 
 	src, err := imaging.Open(srcPath, imaging.AutoOrientation(true))
 	if err != nil {
-		// Go decoder failed — try ffmpeg (handles HEIC, AVIF, etc.)
+		// Go decoder failed — try ImageMagick first (handles HEIC, AVIF, TIFF variants, etc.)
+		if ImageMagickAvailable() {
+			return generateViaImageMagickConvert(srcPath, cachePath, width, height)
+		}
+		// ImageMagick absent — fall back to ffmpeg
 		if FFmpegAvailable() {
 			return generateViaFFmpegConvert(srcPath, cachePath, width, height)
 		}
-		return "", fmt.Errorf("open image: %w (ffmpeg not available as fallback)", err)
+		return "", fmt.Errorf("open image: %w (neither imagemagick nor ffmpeg available as fallback)", err)
 	}
 
 	thumb := resizeCrop(src, width, height)
