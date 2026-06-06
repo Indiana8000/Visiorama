@@ -1,6 +1,7 @@
 server:
   host: 0.0.0.0
   port: 8080
+  memLimitMiB: 0  # 0 = auto (90% of cgroup/physical RAM); >0 sets a hard limit in MiB
 
 library:
   rootPath: /mnt/photos
@@ -22,6 +23,11 @@ thumbnails:
   sizes: [320, 640]
   aspectRatioW: 4
   aspectRatioH: 3
+
+transcode:
+  cacheDir: /var/lib/visiorama/transcodes  # directory for transcoded video files
+  ttlHours: 48                             # delete transcoded files after this many hours (0 = use default 48)
+  imageMaxDim: 2400                        # max dimension (px) for on-demand image conversion to JPEG
 
 limits:
   largeMediaWarningBytes: 104857600

@@ -27,8 +27,9 @@ type TranscodeConfig struct {
 }
 
 type ServerConfig struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	MemLimitMiB  int    `yaml:"memLimitMiB"`
 }
 
 type LibraryConfig struct {

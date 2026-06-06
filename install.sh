@@ -137,7 +137,7 @@ main() {
   fi
 
   # Create directories
-  mkdir -p "${DATA_DIR}/thumbs"
+  mkdir -p "${DATA_DIR}/thumbs" "${DATA_DIR}/transcodes"
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "${DATA_DIR}"
   echo "  Data directory: ${DATA_DIR}"
 
@@ -148,6 +148,7 @@ main() {
 server:
   host: 0.0.0.0
   port: 8080
+  memLimitMiB: 0
 
 library:
   rootPath: /mnt/photos
@@ -156,7 +157,7 @@ library:
 scan:
   defaultMode: quick
   quickFallbackToFull: true
-  maxWorkers: 0  # 0 = auto (min of CPU count and RAM/512MiB); >0 caps the auto value
+  maxWorkers: 0
 
 filtering:
   excludePatterns: [".*", "@eaDir", "Thumbs.db", "#recycle"]
@@ -170,11 +171,17 @@ thumbnails:
   aspectRatioW: 4
   aspectRatioH: 3
 
+transcode:
+  cacheDir: /var/lib/visiorama/transcodes
+  ttlHours: 48
+  imageMaxDim: 2400
+
 limits:
   largeMediaWarningBytes: 104857600
 
 database:
   sqlitePath: ${DATA_DIR}/index.db
+
 EOF
     echo "  Config written to ${CONFIG_DIR}/visiorama.yaml"
     echo ""
@@ -199,8 +206,17 @@ EOF
   echo "If your photo library is on a mounted drive, grant access:"
   echo "  usermod -aG <mountgroup> ${SERVICE_USER}"
   echo ""
-  echo "If ffmpeg is available, video thumbnails will be generated automatically."
-  echo "Install: apk add ffmpeg  /  apt install ffmpeg"
+  echo "Optional dependencies:"
+  echo ""
+  echo "  ffmpeg — video thumbnails + video transcoding:"
+  echo "    Alpine:  apk add ffmpeg"
+  echo "    Debian:  apt install ffmpeg"
+  echo ""
+  echo "  ImageMagick — HEIC/AVIF/TIFF image support (recommended):"
+  echo "    Alpine:  apk add imagemagick imagemagick-heic"
+  echo "    Debian:  apt install imagemagick libheif1"
+  echo "  Note: libheif enables HEIC/HEIF decoding in ImageMagick."
+  echo "        Without it, visiorama falls back to ffmpeg for those formats."
 }
 
 main "$@"

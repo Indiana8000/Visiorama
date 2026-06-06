@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"syscall"
@@ -27,17 +28,20 @@ func Run(cfg *app.Config) error {
 	observability.SetupLogging()
 	util.RegisterMIMETypes()
 
-	// Set GOMEMLIMIT to 90% of physical RAM so GC collects aggressively
-	// before the OS starts paging. Falls back to 3 GiB if RAM can't be read.
-	// Override with GOMEMLIMIT env var (in bytes) if needed.
 	if os.Getenv("GOMEMLIMIT") == "" {
 		const fallback = 3 * 1024 * 1024 * 1024
-		limit := int64(fallback)
-		if total := totalPhysicalBytes(); total > 0 {
-			limit = int64(float64(total) * 0.9)
+		var limit int64
+		if cfg.Server.MemLimitMiB > 0 {
+			limit = int64(cfg.Server.MemLimitMiB) * 1024 * 1024
+			slog.Info("set GOMEMLIMIT from config", "limit", fmt.Sprintf("%d MiB", cfg.Server.MemLimitMiB))
+		} else {
+			limit = fallback
+			if total := totalPhysicalBytes(); total > 0 {
+				limit = int64(float64(total) * 0.9)
+			}
+			slog.Info("set GOMEMLIMIT", "limit", fmt.Sprintf("%d MiB", limit/(1024*1024)))
 		}
 		debug.SetMemoryLimit(limit)
-		slog.Info("set GOMEMLIMIT", "limit", fmt.Sprintf("%d MiB", limit/(1024*1024)))
 	}
 
 	cfg.Scan.MaxWorkers = resolveWorkers(cfg.Scan.MaxWorkers)
@@ -84,6 +88,14 @@ func Run(cfg *app.Config) error {
 
 	if err := os.MkdirAll(cfg.Thumbnails.CacheDir, 0755); err != nil {
 		return fmt.Errorf("create thumbnail cache dir: %w", err)
+	}
+
+	transcodeDir := cfg.Transcode.CacheDir
+	if transcodeDir == "" {
+		transcodeDir = filepath.Join(filepath.Dir(cfg.Thumbnails.CacheDir), "transcodes")
+	}
+	if err := os.MkdirAll(transcodeDir, 0755); err != nil {
+		return fmt.Errorf("create transcode cache dir: %w", err)
 	}
 
 	if thumbs.ImageMagickAvailable() {
