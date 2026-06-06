@@ -15,7 +15,7 @@
     <div class="album-tile__info">
       <span class="album-tile__name" :title="album.name">{{ album.name }}</span>
       <span class="album-tile__count">
-        {{ album.mediaCountRecursive }} items
+        &#128193; {{ album.mediaCountRecursive }} items
         <template v-if="album.childAlbumCount > 0">
           &middot; {{ album.childAlbumCount }} sub-album{{ album.childAlbumCount !== 1 ? 's' : '' }}
         </template>
@@ -50,6 +50,7 @@ const coverSrc = computed(() => {
   flex-direction: column;
   background: var(--bg2);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   border-radius: var(--radius);
   overflow: hidden;
   cursor: pointer;
@@ -59,7 +60,7 @@ const coverSrc = computed(() => {
 }
 .album-tile:hover {
   border-color: var(--accent);
-  transform: translateY(-2px);
+  transform: scale(1.03);
   text-decoration: none;
 }
 
@@ -76,6 +77,10 @@ const coverSrc = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.2s;
+}
+.album-tile:hover .album-tile__img {
+  transform: scale(1.08);
 }
 .album-tile__placeholder {
   display: flex;
@@ -91,6 +96,7 @@ const coverSrc = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  background: var(--bg3);
 }
 .album-tile__name {
   font-weight: 600;

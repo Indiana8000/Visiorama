@@ -60,8 +60,11 @@ const videoDuration = computed(() => {
 }
 .media-tile:hover {
   border-color: var(--accent);
-  transform: translateY(-2px);
+  transform: scale(1.03);
   text-decoration: none;
+}
+.media-tile:hover .media-tile__img {
+  transform: scale(1.08);
 }
 
 .media-tile__thumb {
@@ -75,6 +78,7 @@ const videoDuration = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.2s;
 }
 .media-tile__badge {
   position: absolute;
