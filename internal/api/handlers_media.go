@@ -16,9 +16,10 @@ import (
 )
 
 type mediaHandler struct {
-	cfg    *app.Config
-	store  *index.Store
-	warmer thumbWarmer
+	cfg      *app.Config
+	store    *index.Store
+	warmer   thumbWarmer
+	thumbSem chan struct{}
 }
 
 // thumbWarmer is the subset of thumbs.Warmer used by the media handler.
@@ -86,7 +87,13 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 	thumbReady, _ := mediaRepo2.GetThumbReady(id)
 
 	if !thumbReady {
-		// Foreground cache miss — pause the background warmer so it yields CPU
+		// Acquire semaphore slot — limits concurrent foreground thumbnail generation
+		// across all clients to the same worker count used by the scanner.
+		if h.thumbSem != nil {
+			h.thumbSem <- struct{}{}
+			defer func() { <-h.thumbSem }()
+		}
+		// Pause the background warmer while a foreground slot is held.
 		if h.warmer != nil {
 			h.warmer.Pause()
 		}
