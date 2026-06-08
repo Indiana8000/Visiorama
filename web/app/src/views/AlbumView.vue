@@ -6,9 +6,9 @@
     </div>
     <template v-else-if="store.currentAlbum">
       <p class="album-meta">
-        {{ store.currentAlbum.album.mediaCountRecursive }} total items
+        {{ store.currentAlbum.album.mediaCountRecursive.toLocaleString() }} total items
         <template v-if="store.currentAlbum.childAlbums.length > 0">
-          &middot; {{ store.currentAlbum.childAlbums.length }} album{{ store.currentAlbum.childAlbums.length !== 1 ? 's' : '' }}
+          &middot; {{ store.currentAlbum.childAlbums.length.toLocaleString() }} album{{ store.currentAlbum.childAlbums.length !== 1 ? 's' : '' }}
         </template>
       </p>
 

@@ -15,9 +15,9 @@
     <div class="album-tile__info">
       <span class="album-tile__name" :title="album.name">{{ album.name }}</span>
       <span class="album-tile__count">
-        &#128193; {{ album.mediaCountRecursive }} items
+        &#128193; {{ album.mediaCountRecursive.toLocaleString() }} items
         <template v-if="album.childAlbumCount > 0">
-          &middot; {{ album.childAlbumCount }} sub-album{{ album.childAlbumCount !== 1 ? 's' : '' }}
+          &middot; {{ album.childAlbumCount.toLocaleString() }} sub-album{{ album.childAlbumCount !== 1 ? 's' : '' }}
         </template>
       </span>
     </div>
@@ -105,5 +105,11 @@ const coverSrc = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.album-tile__count { font-size: 11px; color: var(--muted); }
+.album-tile__count {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 </style>
