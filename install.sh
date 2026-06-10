@@ -72,6 +72,8 @@ command_args="-config ${CONFIG_DIR}/visiorama.yaml"
 command_user="${SERVICE_USER}"
 pidfile="/run/visiorama.pid"
 command_background=true
+output_log="/var/log/visiorama.log"
+error_log="/var/log/visiorama.log"
 
 depend() {
   need net
