@@ -41,6 +41,9 @@ type ScanConfig struct {
 	DefaultMode         string `yaml:"defaultMode"`
 	QuickFallbackToFull bool   `yaml:"quickFallbackToFull"`
 	MaxWorkers          int    `yaml:"maxWorkers"`
+	// IgnoreDirMtime disables directory mtime comparison in quick scan.
+	// Required for CIFS/SMB shares where the kernel does not update dir mtime on file changes.
+	IgnoreDirMtime bool `yaml:"ignoreDirMtime"`
 }
 
 type FilteringConfig struct {

@@ -27,10 +27,14 @@ type FolderDeltaResult struct {
 // QuickScanner uses to decide which folders to re-scan and whether to fall
 // back to FullScanner.
 //
+// When ignoreDirMtime is true every directory is treated as changed, which is
+// required for CIFS/SMB mounts where the kernel does not update dir mtime on
+// file changes.
+//
 // Only immediate filesystem traversal is performed; individual files are
 // never stat-ed.  Hidden directories and names in excludeSet are skipped,
 // matching FullScanner behaviour.
-func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool) (*FolderDeltaResult, error) {
+func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool, ignoreDirMtime bool) (*FolderDeltaResult, error) {
 	// Load all known album mtimes from the DB keyed by relative_path.
 	rows, err := db.Query(`SELECT relative_path, dir_mtime_ns FROM albums WHERE relative_path != ''`)
 	if err != nil {
@@ -100,7 +104,7 @@ func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool) (*
 			result.ChangedDirs = append(result.ChangedDirs, relPath)
 			return nil
 		}
-		if entry.mtimeNs == nil || *entry.mtimeNs != diskMtimeNs {
+		if ignoreDirMtime || entry.mtimeNs == nil || *entry.mtimeNs != diskMtimeNs {
 			result.ChangedDirs = append(result.ChangedDirs, relPath)
 		}
 

@@ -35,7 +35,7 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 	root := s.cfg.Library.RootPath
 
 	// --- Step 1: Compute folder deltas ---
-	delta, err := ComputeFolderDeltas(db, root, excludeSet)
+	delta, err := ComputeFolderDeltas(db, root, excludeSet, s.cfg.Scan.IgnoreDirMtime)
 	if err != nil {
 		return nil, false, fmt.Errorf("compute folder deltas: %w", err)
 	}
