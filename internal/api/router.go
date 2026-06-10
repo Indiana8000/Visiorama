@@ -29,6 +29,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 
 	sh := &scanHandler{cfg: cfg, store: store, runner: runner}
 	mux.HandleFunc("POST /api/scans", sh.trigger)
+	mux.HandleFunc("GET /api/scans", sh.getAll)
 	mux.HandleFunc("GET /api/scans/active", sh.getActive)
 	mux.HandleFunc("GET /api/scans/{scanId}", sh.getStatus)
 

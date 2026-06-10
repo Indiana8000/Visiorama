@@ -62,6 +62,30 @@ func (r *ScanRepo) UpdateCounters(id string, scanned, indexed, skipped, errCount
 	return err
 }
 
+func (r *ScanRepo) GetAll(limit int) ([]*ScanJob, error) {
+	rows, err := r.db.Query(`
+		SELECT id, mode, status, started_at, finished_at,
+		       scanned_files, indexed_files, skipped_files,
+		       error_count, fallback_to_full
+		FROM scan_jobs ORDER BY started_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var jobs []*ScanJob
+	for rows.Next() {
+		j := &ScanJob{}
+		var fallback int
+		if err := rows.Scan(&j.ID, &j.Mode, &j.Status, &j.StartedAt, &j.FinishedAt,
+			&j.ScannedFiles, &j.IndexedFiles, &j.SkippedFiles, &j.ErrorCount, &fallback); err != nil {
+			return nil, err
+		}
+		j.FallbackToFull = fallback == 1
+		jobs = append(jobs, j)
+	}
+	return jobs, rows.Err()
+}
+
 // GetActive returns the currently queued or running scan job, or nil if none.
 func (r *ScanRepo) GetActive() (*ScanJob, error) {
 	row := r.db.QueryRow(`

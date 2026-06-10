@@ -72,6 +72,20 @@ func (h *scanHandler) getStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, repoScanJobToDTO(job))
 }
 
+func (h *scanHandler) getAll(w http.ResponseWriter, r *http.Request) {
+	scanRepo := repositories.NewScanRepo(h.store.DB())
+	jobs, err := scanRepo.GetAll(100)
+	if err != nil {
+		internalError(w)
+		return
+	}
+	dtos := make([]ScanJob, len(jobs))
+	for i, j := range jobs {
+		dtos[i] = repoScanJobToDTO(j)
+	}
+	writeJSON(w, http.StatusOK, dtos)
+}
+
 func (h *scanHandler) getActive(w http.ResponseWriter, r *http.Request) {
 	scanRepo := repositories.NewScanRepo(h.store.DB())
 	job, err := scanRepo.GetActive()
