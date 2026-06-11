@@ -111,61 +111,78 @@ async function loadClusters(mapInstance) {
   }
 }
 
-// Popup for single images with thumbnail
 let popup = null
 
+function mapStateQuery(mapInstance) {
+  const center = mapInstance.getCenter()
+  const q = new URLSearchParams({
+    from: 'map',
+    lat: center.lat.toFixed(6),
+    lng: center.lng.toFixed(6),
+    zoom: mapInstance.getZoom().toFixed(2),
+  })
+  if (props.albumId) q.set('album_id', props.albumId)
+  return q
+}
+
+function showThumbnailPopup(mapInstance, lngLat, point) {
+  if (popup) { popup.remove(); popup = null }
+
+  // queryRenderedFeatures collects ALL stacked markers at the click pixel
+  const features = mapInstance.queryRenderedFeatures(point, { layers: ['single-marker'] })
+  const allIds = []
+  for (const f of features) {
+    const ids = typeof f.properties.ids === 'string' ? JSON.parse(f.properties.ids) : f.properties.ids
+    for (const id of ids) {
+      if (!allIds.includes(id)) allIds.push(id)
+    }
+  }
+  if (allIds.length === 0) return
+
+  const BASE = import.meta.env.VITE_API_BASE || ''
+  const MAX = 12
+  const shown = allIds.slice(0, MAX)
+  const more = allIds.length > MAX
+    ? `<div style="font-size:12px;color:#888;padding:4px 2px;">+${allIds.length - MAX} more</div>`
+    : ''
+
+  const imgs = shown.map(id =>
+    `<img data-id="${id}" src="${BASE}/api/media/${id}/thumbnail?size=320"
+      style="width:88px;height:88px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0;" />`
+  ).join('')
+
+  popup = new maplibregl.Popup({ closeButton: true, maxWidth: '320px', offset: 12 })
+    .setLngLat(lngLat)
+    .setHTML(`<div style="display:flex;flex-wrap:wrap;gap:6px;padding:4px;">${imgs}${more}</div>`)
+    .addTo(mapInstance)
+
+  popup.getElement().addEventListener('click', (e) => {
+    const img = e.target.closest('img[data-id]')
+    if (!img) return
+    popup.remove(); popup = null
+    router.push(`/media/${img.dataset.id}?${mapStateQuery(mapInstance)}`)
+  })
+}
+
 function setupInteractions(mapInstance) {
-  // Click on cluster: zoom in
+  // Click cluster: zoom in
   mapInstance.on('click', 'cluster-circle', (e) => {
     const zoom = Math.min(mapInstance.getZoom() + 2, 18)
-    const coords = e.features[0].geometry.coordinates
-    mapInstance.flyTo({ center: coords, zoom })
+    mapInstance.flyTo({ center: e.features[0].geometry.coordinates, zoom })
   })
 
-  // Click on single marker: open lightbox, pass map state for back-navigation
+  // Click single marker: show thumbnail grid popup
   mapInstance.on('click', 'single-marker', (e) => {
-    const id = e.features[0].properties.ids
-    const ids = typeof id === 'string' ? JSON.parse(id) : id
-    if (ids && ids.length > 0) {
-      const center = mapInstance.getCenter()
-      const zoom = mapInstance.getZoom()
-      const q = new URLSearchParams({
-        from: 'map',
-        lat: center.lat.toFixed(6),
-        lng: center.lng.toFixed(6),
-        zoom: zoom.toFixed(2),
-      })
-      if (props.albumId) q.set('album_id', props.albumId)
-      router.push(`/media/${ids[0]}?${q}`)
-    }
+    showThumbnailPopup(mapInstance, e.features[0].geometry.coordinates.slice(), e.point)
   })
 
-  // Hover on single marker: show thumbnail popup
-  mapInstance.on('mouseenter', 'single-marker', (e) => {
-    mapInstance.getCanvas().style.cursor = 'pointer'
-    const props = e.features[0].properties
-    const ids = typeof props.ids === 'string' ? JSON.parse(props.ids) : props.ids
-    const thumbnailId = props.thumbnailId
-    const coords = e.features[0].geometry.coordinates.slice()
+  mapInstance.on('mouseenter', 'single-marker', () => { mapInstance.getCanvas().style.cursor = 'pointer' })
+  mapInstance.on('mouseleave', 'single-marker', () => { mapInstance.getCanvas().style.cursor = '' })
+  mapInstance.on('mouseenter', 'cluster-circle', () => { mapInstance.getCanvas().style.cursor = 'pointer' })
+  mapInstance.on('mouseleave', 'cluster-circle', () => { mapInstance.getCanvas().style.cursor = '' })
 
-    const BASE = import.meta.env.VITE_API_BASE || ''
-    popup = new maplibregl.Popup({ closeButton: false, offset: 15 })
-      .setLngLat(coords)
-      .setHTML(`<img src="${BASE}/api/media/${thumbnailId}/thumbnail?size=320" style="width:200px;height:200px;object-fit:cover;border-radius:4px;" />`)
-      .addTo(mapInstance)
-  })
-
-  mapInstance.on('mouseleave', 'single-marker', () => {
-    mapInstance.getCanvas().style.cursor = ''
-    if (popup) { popup.remove(); popup = null }
-  })
-
-  mapInstance.on('mouseenter', 'cluster-circle', () => {
-    mapInstance.getCanvas().style.cursor = 'pointer'
-  })
-  mapInstance.on('mouseleave', 'cluster-circle', () => {
-    mapInstance.getCanvas().style.cursor = ''
-  })
+  // Close popup on map move
+  mapInstance.on('movestart', () => { if (popup) { popup.remove(); popup = null } })
 }
 
 onMounted(() => {
