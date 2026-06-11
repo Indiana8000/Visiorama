@@ -193,17 +193,6 @@ onMounted(async () => {
   const BASE = import.meta.env.VITE_API_BASE || ''
   const styleJson = await fetch(`${BASE}/api/map/style`).then(r => r.json())
 
-  // MapLibre requires absolute sprite URLs
-  if (typeof styleJson.sprite === 'string' && styleJson.sprite.startsWith('/')) {
-    styleJson.sprite = window.location.origin + styleJson.sprite
-  } else if (Array.isArray(styleJson.sprite)) {
-    styleJson.sprite = styleJson.sprite.map(s =>
-      typeof s.url === 'string' && s.url.startsWith('/')
-        ? { ...s, url: window.location.origin + s.url }
-        : s
-    )
-  }
-
   map = new maplibregl.Map({
     container: mapContainer.value,
     style: styleJson,

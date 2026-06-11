@@ -43,13 +43,21 @@ func (h *mapHandler) getStyle(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "upstream read error", http.StatusBadGateway)
 			return
 		}
-		// Rewrite all openfreemap.org URLs to go through our proxy
-		rewritten := strings.ReplaceAll(string(raw), openFreeMapBase, "/api/map/proxy")
-		h.styleBody = []byte(rewritten)
+		h.styleBody = raw // store raw; rewrite happens per-request with correct host
 		h.styleAt = time.Now()
 	}
-	body := h.styleBody
+	raw := h.styleBody
 	h.styleMu.Unlock()
+
+	scheme := "https"
+	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") == "" {
+		scheme = "http"
+	}
+	if fwdProto := r.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
+		scheme = fwdProto
+	}
+	selfBase := scheme + "://" + r.Host + "/api/map/proxy"
+	body := []byte(strings.ReplaceAll(string(raw), openFreeMapBase, selfBase))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=600")
@@ -58,6 +66,8 @@ func (h *mapHandler) getStyle(w http.ResponseWriter, r *http.Request) {
 }
 
 // proxyUpstream forwards any /api/map/proxy/{path} request to openfreemap.org.
+// JSON responses are rewritten to replace all openfreemap.org URLs with proxy paths,
+// so MapLibre never makes direct external requests (e.g. TileJSON tile arrays).
 func (h *mapHandler) proxyUpstream(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	target := openFreeMapBase + "/" + path
@@ -65,19 +75,44 @@ func (h *mapHandler) proxyUpstream(w http.ResponseWriter, r *http.Request) {
 		target += "?" + r.URL.RawQuery
 	}
 
-	resp, err := http.Get(target) //nolint:gosec
+	req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+	req.Header.Set("Accept-Encoding", "identity") // prevent Go transport auto-decompression
+	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
 		http.Error(w, "upstream unavailable", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
 
-	// Forward relevant headers
-	for _, h := range []string{"Content-Type", "Content-Encoding", "Cache-Control", "ETag", "Last-Modified"} {
-		if v := resp.Header.Get(h); v != "" {
-			w.Header().Set(h, v)
+	ct := resp.Header.Get("Content-Type")
+	for _, hdr := range []string{"Content-Type", "Cache-Control", "ETag", "Last-Modified"} {
+		if v := resp.Header.Get(hdr); v != "" {
+			w.Header().Set(hdr, v)
 		}
 	}
+
+	// Rewrite openfreemap.org URLs inside JSON responses (TileJSON, style fragments).
+	// Must use absolute URLs — MapLibre rejects relative ones in tile/source definitions.
+	if strings.Contains(ct, "application/json") || strings.Contains(ct, "text/json") {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			http.Error(w, "upstream read error", http.StatusBadGateway)
+			return
+		}
+		scheme := "https"
+		if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") == "" {
+			scheme = "http"
+		}
+		if fwdProto := r.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
+			scheme = fwdProto
+		}
+		selfBase := scheme + "://" + r.Host + "/api/map/proxy"
+		rewritten := strings.ReplaceAll(string(body), openFreeMapBase, selfBase)
+		w.WriteHeader(resp.StatusCode)
+		_, _ = w.Write([]byte(rewritten))
+		return
+	}
+
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
 }
