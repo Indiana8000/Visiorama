@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS media (
 
 CREATE TABLE IF NOT EXISTS scan_jobs (
     id              TEXT    PRIMARY KEY,
-    mode            TEXT    NOT NULL CHECK(mode IN ('full','quick')),
+    mode            TEXT    NOT NULL CHECK(mode IN ('full','quick','orphan')),
     status          TEXT    NOT NULL CHECK(status IN ('queued','running','success','failed')),
     started_at      TEXT,
     finished_at     TEXT,
@@ -77,6 +77,23 @@ var alterations = []string{
 		finished_at TEXT
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_transcode_jobs_media_id ON transcode_jobs(media_id)`,
+	// Extend scan_jobs.mode to allow 'orphan'.
+	// SQLite cannot ALTER a CHECK constraint, so recreate the table.
+	`CREATE TABLE IF NOT EXISTS scan_jobs_new (
+		id              TEXT    PRIMARY KEY,
+		mode            TEXT    NOT NULL CHECK(mode IN ('full','quick','orphan')),
+		status          TEXT    NOT NULL CHECK(status IN ('queued','running','success','failed')),
+		started_at      TEXT,
+		finished_at     TEXT,
+		scanned_files   INTEGER NOT NULL DEFAULT 0,
+		indexed_files   INTEGER NOT NULL DEFAULT 0,
+		skipped_files   INTEGER NOT NULL DEFAULT 0,
+		error_count     INTEGER NOT NULL DEFAULT 0,
+		fallback_to_full INTEGER NOT NULL DEFAULT 0
+	)`,
+	`INSERT OR IGNORE INTO scan_jobs_new SELECT * FROM scan_jobs`,
+	`DROP TABLE scan_jobs`,
+	`ALTER TABLE scan_jobs_new RENAME TO scan_jobs`,
 }
 
 func Migrate(s *Store) error {

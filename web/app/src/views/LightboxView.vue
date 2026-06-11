@@ -22,6 +22,7 @@
         <div class="lb-content">
           <div v-if="media.type === 'image'" class="lb-img-wrap">
             <img
+              v-show="!imgConvertFailed"
               :key="'img-' + media.id + '-' + imgUseConvert"
               :src="imgSrc"
               :alt="media.filename"
@@ -31,8 +32,10 @@
               @load="onImgLoad"
             />
             <span v-if="imgUseConvert && imgConvertLoaded && !imgConvertFailed" class="lb-img-badge">&#9432; Reduced quality</span>
-            <div v-if="imgConvertFailed" class="lb-transcode-prompt lb-transcode-prompt--error" style="position:static;margin-top:8px;">
-              &#10005; Image could not be loaded.
+            <div v-if="imgConvertFailed" class="lb-missing">
+              <span class="lb-missing-icon">&#128247;</span>
+              <span class="lb-missing-title">Image not found</span>
+              <span class="lb-missing-hint">The file may have been deleted. A cleanup scan has been started automatically.</span>
             </div>
           </div>
           <div v-else-if="media.type === 'video'" class="lb-video-wrap">
@@ -364,6 +367,20 @@ watch(mediaId, (id) => load(id))
   display: block;
 }
 .lb-img--warn { opacity: 0.9; }
+
+.lb-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 32px;
+  color: var(--muted);
+  text-align: center;
+}
+.lb-missing-icon { font-size: 48px; opacity: 0.35; }
+.lb-missing-title { font-size: 15px; font-weight: 600; color: var(--fg); }
+.lb-missing-hint { font-size: 12px; max-width: 280px; line-height: 1.5; }
 .lb-img-badge {
   position: absolute;
   bottom: 8px;

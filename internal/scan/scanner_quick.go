@@ -319,7 +319,11 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 		}
 		recursive := direct
 		for _, child := range children {
-			recursive += recursiveCounts[child.ID]
+			if updated, ok := recursiveCounts[child.ID]; ok {
+				recursive += updated
+			} else {
+				recursive += child.MediaCountRecursive
+			}
 		}
 		recursiveCounts[id] = recursive
 		if err := albumRepo.UpdateCounts(id, direct, recursive, len(children)); err != nil {
@@ -333,7 +337,11 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 		rootDirect, _ := mediaRepo.CountByAlbum(rootAlbum.ID)
 		rootRecursive := rootDirect
 		for _, child := range rootChildren {
-			rootRecursive += recursiveCounts[child.ID]
+			if updated, ok := recursiveCounts[child.ID]; ok {
+				rootRecursive += updated
+			} else {
+				rootRecursive += child.MediaCountRecursive
+			}
 		}
 		_ = albumRepo.UpdateCounts(rootAlbum.ID, rootDirect, rootRecursive, len(rootChildren))
 	}

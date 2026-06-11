@@ -31,8 +31,8 @@ func (h *scanHandler) trigger(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.Mode != "full" && req.Mode != "quick" {
-		badRequest(w, "mode must be 'full' or 'quick'")
+	if req.Mode != "full" && req.Mode != "quick" && req.Mode != "orphan" {
+		badRequest(w, "mode must be 'full', 'quick' or 'orphan'")
 		return
 	}
 

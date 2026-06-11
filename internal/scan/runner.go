@@ -88,6 +88,8 @@ func (r *Runner) TriggerAsync(scanID, mode string) error {
 				s, fb, e := NewQuickScanner(r.cfg, r.store).Run(context.Background(), scanID)
 				return s, e, fb
 			}()
+		case "orphan":
+			stats, err = NewOrphanScanner(r.cfg, r.store).Run(context.Background(), scanID)
 		default:
 			err = fmt.Errorf("unknown scan mode: %s", mode)
 		}

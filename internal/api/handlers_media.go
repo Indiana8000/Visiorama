@@ -15,11 +15,32 @@ import (
 	"github.com/Indiana8000/visiorama/internal/util"
 )
 
+func (h *mediaHandler) maybeStartOrphanScan() {
+	if h.runner == nil || h.runner.IsRunning() {
+		return
+	}
+	scanID := fmt.Sprintf("scan-orphan-%d", time.Now().UnixMilli())
+	scanRepo := repositories.NewScanRepo(h.store.DB())
+	_ = scanRepo.Create(&repositories.ScanJob{ID: scanID, Mode: "orphan", Status: "queued"})
+	if err := h.runner.TriggerAsync(scanID, "orphan"); err != nil {
+		slog.Warn("media: could not start orphan scan", "err", err)
+	} else {
+		slog.Info("media: triggered orphan scan", "scanId", scanID)
+	}
+}
+
 type mediaHandler struct {
 	cfg      *app.Config
 	store    *index.Store
 	warmer   thumbWarmer
 	thumbSem chan struct{}
+	runner   orphanTrigger
+}
+
+// orphanTrigger is the subset of scan.Runner used by the media handler.
+type orphanTrigger interface {
+	IsRunning() bool
+	TriggerAsync(scanID, mode string) error
 }
 
 // thumbWarmer is the subset of thumbs.Warmer used by the media handler.
@@ -99,6 +120,12 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if _, statErr := os.Stat(absPath); os.IsNotExist(statErr) {
+		h.maybeStartOrphanScan()
+		notFound(w)
+		return
+	}
+
 	var cachePath string
 	switch m.Type {
 	case "image":
@@ -157,6 +184,9 @@ func (h *mediaHandler) stream(w http.ResponseWriter, r *http.Request) {
 
 	f, err := os.Open(absPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			h.maybeStartOrphanScan()
+		}
 		notFound(w)
 		return
 	}

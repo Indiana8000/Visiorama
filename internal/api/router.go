@@ -22,7 +22,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	mux.HandleFunc("GET /api/albums/{albumId}", ah.getByID)
 
 	thumbSem := make(chan struct{}, cfg.Scan.MaxWorkers)
-	mh := &mediaHandler{cfg: cfg, store: store, warmer: warmer, thumbSem: thumbSem}
+	mh := &mediaHandler{cfg: cfg, store: store, warmer: warmer, thumbSem: thumbSem, runner: runner}
 	mux.HandleFunc("GET /api/media/{mediaId}/metadata", mh.getMetadata)
 	mux.HandleFunc("GET /api/media/{mediaId}/thumbnail", mh.getThumbnail)
 	mux.HandleFunc("GET /api/media/{mediaId}/stream", mh.stream)
