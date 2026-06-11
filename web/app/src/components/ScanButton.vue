@@ -47,6 +47,12 @@ const statusMsg = computed(() => {
   if (!job.value) return null
   const mode = job.value.mode === 'full' ? 'full' : 'quick'
   if (isRunning.value) {
+    if (job.value.mode === 'quick') {
+      const checked = job.value.scannedFiles
+      return checked > 0
+        ? `[quick] ${checked} album${checked === 1 ? '' : 's'} checked…`
+        : '[quick] Checking…'
+    }
     return `[${mode}] Indexed ${job.value.indexedFiles} / scanned ${job.value.scannedFiles}`
   }
   if (isDone.value) {

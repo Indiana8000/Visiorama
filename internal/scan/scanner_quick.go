@@ -28,6 +28,13 @@ func NewQuickScanner(cfg *app.Config, store *index.Store) *QuickScanner {
 // Run executes the quick scan for the given scanID.
 // Returns (stats, fallbackOccurred, error).
 func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, error) {
+	return s.RunWithProgress(ctx, scanID, nil)
+}
+
+// RunWithProgress is like Run but calls onProgress after each changed dir is
+// processed. During running state scanned counter = dirs checked; at the end
+// the runner overwrites it with actual file counts.
+func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, onProgress ProgressFunc) (*Stats, bool, error) {
 	InitExtensions(s.cfg.Filtering.AllowedImageExtensions, s.cfg.Filtering.AllowedVideoExtensions)
 
 	db := s.store.DB()
@@ -164,6 +171,9 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 	// We still call WalkDir per changed dir so we get subdirectory structure.
 	affectedAlbums := map[string]int64{} // relPath → albumID for count recompute
 
+	totalDirs := int64(len(delta.ChangedDirs))
+	var dirsChecked int64
+
 	for _, changedRelPath := range delta.ChangedDirs {
 		if ctx.Err() != nil {
 			break
@@ -245,6 +255,12 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 		if walkErr != nil && walkErr != context.Canceled {
 			slog.Warn("quick scan: walk error", "dir", changedRelPath, "err", walkErr)
 		}
+
+		dirsChecked++
+		if onProgress != nil {
+			onProgress(dirsChecked, stats.Indexed.Load(), stats.Skipped.Load(), stats.ErrCount.Load())
+		}
+		slog.Debug("quick scan: dir done", "dir", changedRelPath, "checked", dirsChecked, "total", totalDirs)
 	}
 
 	close(jobs)
