@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,7 +14,8 @@ import (
 	"github.com/Indiana8000/visiorama/internal/mapview"
 )
 
-const openFreeMapStyle = "https://tiles.openfreemap.org/styles/liberty"
+const openFreeMapBase  = "https://tiles.openfreemap.org"
+const openFreeMapStyle = openFreeMapBase + "/styles/liberty"
 
 type mapHandler struct {
 	store     *index.Store
@@ -22,8 +24,9 @@ type mapHandler struct {
 	styleAt   time.Time
 }
 
-// getStyle proxies the OpenFreeMap style JSON so the browser avoids CORS.
-// Cached for 10 minutes.
+// getStyle proxies and rewrites the OpenFreeMap style JSON.
+// All openfreemap.org URLs are rewritten to /api/map/proxy/... so every
+// subsequent browser request (tiles, glyphs, sprites) stays on localhost.
 func (h *mapHandler) getStyle(w http.ResponseWriter, r *http.Request) {
 	h.styleMu.Lock()
 	if time.Since(h.styleAt) > 10*time.Minute {
@@ -34,13 +37,15 @@ func (h *mapHandler) getStyle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
+		raw, err := io.ReadAll(resp.Body)
 		if err != nil {
 			h.styleMu.Unlock()
 			http.Error(w, "upstream read error", http.StatusBadGateway)
 			return
 		}
-		h.styleBody = body
+		// Rewrite all openfreemap.org URLs to go through our proxy
+		rewritten := strings.ReplaceAll(string(raw), openFreeMapBase, "/api/map/proxy")
+		h.styleBody = []byte(rewritten)
 		h.styleAt = time.Now()
 	}
 	body := h.styleBody
@@ -50,6 +55,31 @@ func (h *mapHandler) getStyle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=600")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+}
+
+// proxyUpstream forwards any /api/map/proxy/{path} request to openfreemap.org.
+func (h *mapHandler) proxyUpstream(w http.ResponseWriter, r *http.Request) {
+	path := r.PathValue("path")
+	target := openFreeMapBase + "/" + path
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+
+	resp, err := http.Get(target) //nolint:gosec
+	if err != nil {
+		http.Error(w, "upstream unavailable", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Forward relevant headers
+	for _, h := range []string{"Content-Type", "Content-Encoding", "Cache-Control", "ETag", "Last-Modified"} {
+		if v := resp.Header.Get(h); v != "" {
+			w.Header().Set(h, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
 }
 
 // GeoJSONFeatureCollection is returned by /api/map/clusters
