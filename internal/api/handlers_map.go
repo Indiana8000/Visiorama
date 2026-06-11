@@ -2,16 +2,54 @@ package api
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/mapview"
 )
 
+const openFreeMapStyle = "https://tiles.openfreemap.org/styles/liberty"
+
 type mapHandler struct {
-	store *index.Store
+	store     *index.Store
+	styleMu   sync.Mutex
+	styleBody []byte
+	styleAt   time.Time
+}
+
+// getStyle proxies the OpenFreeMap style JSON so the browser avoids CORS.
+// Cached for 10 minutes.
+func (h *mapHandler) getStyle(w http.ResponseWriter, r *http.Request) {
+	h.styleMu.Lock()
+	if time.Since(h.styleAt) > 10*time.Minute {
+		resp, err := http.Get(openFreeMapStyle) //nolint:gosec
+		if err != nil {
+			h.styleMu.Unlock()
+			http.Error(w, "upstream unavailable", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			h.styleMu.Unlock()
+			http.Error(w, "upstream read error", http.StatusBadGateway)
+			return
+		}
+		h.styleBody = body
+		h.styleAt = time.Now()
+	}
+	body := h.styleBody
+	h.styleMu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=600")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
 }
 
 // GeoJSONFeatureCollection is returned by /api/map/clusters

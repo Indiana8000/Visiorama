@@ -192,7 +192,7 @@ onMounted(() => {
 
   map = new maplibregl.Map({
     container: mapContainer.value,
-    style: 'https://tiles.openfreemap.org/styles/liberty',
+    style: `${import.meta.env.VITE_API_BASE || ''}/api/map/style`,
     center,
     zoom,
   })

@@ -49,6 +49,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 
 	mh2 := &mapHandler{store: store}
 	mux.HandleFunc("GET /api/map/clusters", mh2.getClusters)
+	mux.HandleFunc("GET /api/map/style", mh2.getStyle)
 	mux.HandleFunc("GET /api/albums/{albumId}/gps-count", mh2.getGPSCount)
 
 	// SPA fallback — serves embedded Vue dist for all non-API paths
