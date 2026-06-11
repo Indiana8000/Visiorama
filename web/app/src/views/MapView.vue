@@ -185,14 +185,28 @@ function setupInteractions(mapInstance) {
   mapInstance.on('movestart', () => { if (popup) { popup.remove(); popup = null } })
 }
 
-onMounted(() => {
+onMounted(async () => {
   const q = route.query
   const center = (q.lng && q.lat) ? [parseFloat(q.lng), parseFloat(q.lat)] : [10, 51]
   const zoom   = q.zoom ? parseFloat(q.zoom) : 4
 
+  const BASE = import.meta.env.VITE_API_BASE || ''
+  const styleJson = await fetch(`${BASE}/api/map/style`).then(r => r.json())
+
+  // MapLibre requires absolute sprite URLs
+  if (typeof styleJson.sprite === 'string' && styleJson.sprite.startsWith('/')) {
+    styleJson.sprite = window.location.origin + styleJson.sprite
+  } else if (Array.isArray(styleJson.sprite)) {
+    styleJson.sprite = styleJson.sprite.map(s =>
+      typeof s.url === 'string' && s.url.startsWith('/')
+        ? { ...s, url: window.location.origin + s.url }
+        : s
+    )
+  }
+
   map = new maplibregl.Map({
     container: mapContainer.value,
-    style: `${import.meta.env.VITE_API_BASE || ''}/api/map/style`,
+    style: styleJson,
     center,
     zoom,
   })
