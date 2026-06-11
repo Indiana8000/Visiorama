@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AlbumView from '../views/AlbumView.vue'
 import LightboxView from '../views/LightboxView.vue'
+import MapView from '../views/MapView.vue'
 
 const routes = [
   {
@@ -19,6 +20,12 @@ const routes = [
     name: 'media',
     component: LightboxView,
     props: true,
+  },
+  {
+    path: '/map',
+    name: 'map',
+    component: MapView,
+    props: route => ({ albumId: route.query.album_id || null }),
   },
 ]
 

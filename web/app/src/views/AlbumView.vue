@@ -5,12 +5,15 @@
       {{ store.error }}
     </div>
     <template v-else-if="store.currentAlbum">
-      <p class="album-meta">
-        {{ store.currentAlbum.album.mediaCountRecursive.toLocaleString() }} total items
-        <template v-if="store.currentAlbum.childAlbums.length > 0">
-          &middot; {{ store.currentAlbum.childAlbums.length.toLocaleString() }} album{{ store.currentAlbum.childAlbums.length !== 1 ? 's' : '' }}
-        </template>
-      </p>
+      <div class="album-meta">
+        <span>
+          {{ store.currentAlbum.album.mediaCountRecursive.toLocaleString() }} items
+          <template v-if="store.currentAlbum.childAlbums.length > 0">
+            &middot; {{ store.currentAlbum.childAlbums.length.toLocaleString() }} album{{ store.currentAlbum.childAlbums.length !== 1 ? 's' : '' }}
+          </template>
+        </span>
+        <button v-if="gpsCount > 0" class="btn-map" @click="openMap">🗺 Map ({{ gpsCount }})</button>
+      </div>
 
       <!-- Child albums -->
       <section v-if="store.currentAlbum.childAlbums.length > 0" class="section">
@@ -67,9 +70,10 @@
 </template>
 
 <script setup>
-import { computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGalleryStore } from '../stores/gallery.js'
+import { api } from '../api/client.js'
 import AlbumTile from '../components/AlbumTile.vue'
 import MediaTile from '../components/MediaTile.vue'
 import ScanButton from '../components/ScanButton.vue'
@@ -84,6 +88,24 @@ const store = useGalleryStore()
 
 const albumId = computed(() => props.id ? parseInt(props.id, 10) : null)
 const pageInfo = computed(() => store.currentAlbum?.page ?? { page: 1, totalPages: 1, hasPrev: false, hasNext: false })
+const gpsCount = ref(0)
+
+async function loadGPSCount(id) {
+  if (id == null) { gpsCount.value = 0; return }
+  try {
+    const res = await api.getAlbumGPSCount(id)
+    gpsCount.value = res.count
+  } catch { gpsCount.value = 0 }
+}
+
+function openMap() {
+  const id = store.currentAlbum?.album?.id
+  if (id != null && id !== 0) {
+    router.push(`/map?album_id=${id}`)
+  } else {
+    router.push('/map')
+  }
+}
 
 function load(page = 1) {
   store.fetchAlbum(albumId.value, page)
@@ -96,12 +118,18 @@ function changePage(page) {
 
 onMounted(() => load())
 watch(() => route.params.id, () => load())
+watch(() => store.currentAlbum, (album) => {
+  loadGPSCount(album?.album?.id ?? null)
+})
 </script>
 
 <style scoped>
 .album-view { padding-bottom: 40px; }
 
 .album-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 13px;
   color: var(--muted);
   margin-bottom: 20px;
@@ -174,4 +202,16 @@ watch(() => route.params.id, () => load())
   font-size: 15px;
   text-align: center;
 }
+
+.btn-map {
+  background: #313244;
+  border: none;
+  color: #cdd6f4;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.btn-map:hover { background: #45475a; }
 </style>

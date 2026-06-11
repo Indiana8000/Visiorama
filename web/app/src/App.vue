@@ -108,6 +108,20 @@ a:hover { text-decoration: underline; }
   flex: 1;
   overflow: hidden;
 }
+
+@media (max-width: 480px) {
+  .app-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .app-breadcrumbs {
+    flex-wrap: wrap;
+    width: 100%;
+    overflow: visible;
+  }
+}
 .sep { color: var(--border); user-select: none; }
 .crumb {
   color: var(--muted);

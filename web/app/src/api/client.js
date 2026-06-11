@@ -102,4 +102,17 @@ export const api = {
   getHealth() {
     return request('/api/health')
   },
+
+  /** GET /api/map/clusters?zoom=Z&bbox=W,S,E,N&album_id=X */
+  getMapClusters(zoom, bbox, albumId) {
+    const p = new URLSearchParams({ zoom: String(zoom) })
+    if (bbox) p.set('bbox', `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`)
+    if (albumId != null) p.set('album_id', String(albumId))
+    return request(`/api/map/clusters?${p}`)
+  },
+
+  /** GET /api/albums/:id/gps-count */
+  getAlbumGPSCount(albumId) {
+    return request(`/api/albums/${albumId}/gps-count`)
+  },
 }

@@ -218,6 +218,76 @@ func (r *MediaRepo) GetMtimeByPath(relativePath string) (int64, bool, error) {
 	return mtime, true, err
 }
 
+// GPSMedia holds the minimal GPS data needed for map clustering.
+type GPSMedia struct {
+	ID     int64
+	GpsLat float64
+	GpsLon float64
+}
+
+// GetGPSMedia returns all media with GPS coordinates.
+// If albumID is non-nil, only media in that album and all its sub-albums are returned.
+func (r *MediaRepo) GetGPSMedia(albumID *int64) ([]GPSMedia, error) {
+	if albumID == nil {
+		rows, err := r.db.Query(`
+            SELECT id, gps_lat, gps_lon FROM media
+            WHERE gps_lat IS NOT NULL AND gps_lon IS NOT NULL`)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		return collectGPSMedia(rows)
+	}
+	// Recursive CTE to get all sub-album IDs including the root album
+	rows, err := r.db.Query(`
+        WITH RECURSIVE sub(id) AS (
+            SELECT id FROM albums WHERE id = ?
+            UNION ALL
+            SELECT a.id FROM albums a JOIN sub s ON a.parent_album_id = s.id
+        )
+        SELECT m.id, m.gps_lat, m.gps_lon
+        FROM media m
+        JOIN sub s ON m.album_id = s.id
+        WHERE m.gps_lat IS NOT NULL AND m.gps_lon IS NOT NULL`, *albumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectGPSMedia(rows)
+}
+
+// CountGPSMedia returns how many media items have GPS coordinates in a given album tree.
+// albumID nil = global count.
+func (r *MediaRepo) CountGPSMedia(albumID *int64) (int, error) {
+	if albumID == nil {
+		var n int
+		err := r.db.QueryRow(`SELECT COUNT(*) FROM media WHERE gps_lat IS NOT NULL AND gps_lon IS NOT NULL`).Scan(&n)
+		return n, err
+	}
+	var n int
+	err := r.db.QueryRow(`
+        WITH RECURSIVE sub(id) AS (
+            SELECT id FROM albums WHERE id = ?
+            UNION ALL
+            SELECT a.id FROM albums a JOIN sub s ON a.parent_album_id = s.id
+        )
+        SELECT COUNT(*) FROM media m JOIN sub s ON m.album_id = s.id
+        WHERE m.gps_lat IS NOT NULL AND m.gps_lon IS NOT NULL`, *albumID).Scan(&n)
+	return n, err
+}
+
+func collectGPSMedia(rows *sql.Rows) ([]GPSMedia, error) {
+	var out []GPSMedia
+	for rows.Next() {
+		var g GPSMedia
+		if err := rows.Scan(&g.ID, &g.GpsLat, &g.GpsLon); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
 func scanMedia(row *sql.Row) (*Media, error) {
 	m := &Media{}
 	err := row.Scan(

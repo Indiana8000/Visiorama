@@ -5,7 +5,7 @@
     <template v-else-if="media">
       <!-- Nav bar -->
       <div class="lb-topbar">
-        <button class="lb-back" @click="goBack">&#8592; Back to album</button>
+        <button class="lb-back" @click="goBack">&#8592; {{ backLabel }}</button>
         <span class="lb-filename">{{ media.filename }}</span>
       </div>
 
@@ -171,12 +171,25 @@ const nextMedia = computed(() => {
   return idx >= 0 && idx < siblings.value.length - 1 ? siblings.value[idx + 1] : null
 })
 
+const fromMap = computed(() => route.query.from === 'map')
+const backLabel = computed(() => fromMap.value ? 'Back to map' : 'Back to album')
+
 function navigate(id) {
-  router.push({ name: 'media', params: { id } })
+  // Preserve map query params when navigating between siblings opened from map
+  const q = fromMap.value ? { ...route.query } : {}
+  router.push({ name: 'media', params: { id }, query: q })
 }
 
 function goBack() {
-  if (media.value?.albumId != null) {
+  if (fromMap.value) {
+    const q = route.query
+    const params = new URLSearchParams()
+    if (q.lat)      params.set('lat', q.lat)
+    if (q.lng)      params.set('lng', q.lng)
+    if (q.zoom)     params.set('zoom', q.zoom)
+    if (q.album_id) params.set('album_id', q.album_id)
+    router.push(`/map?${params}`)
+  } else if (media.value?.albumId != null) {
     router.push({ name: 'album', params: { id: media.value.albumId } })
   } else {
     router.back()
