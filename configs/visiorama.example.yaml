@@ -10,6 +10,7 @@ library:
 scan:
   defaultMode: quick
   quickFallbackToFull: true
+  ignoreDirMtime: false
   maxWorkers: 0  # 0 = auto (min of CPU count and RAM/512MiB); >0 caps the auto value
 
 filtering:

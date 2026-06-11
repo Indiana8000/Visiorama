@@ -143,7 +143,7 @@ func Run(cfg *app.Config) error {
 func resolveWorkers(maxCfg int) int {
 	const ramPerWorker = 512 * 1024 * 1024
 
-	workers := runtime.NumCPU()
+	workers := runtime.NumCPU() +1
 	if total := totalPhysicalBytes(); total > 0 {
 		byRAM := int(total / ramPerWorker)
 		if byRAM < workers {
