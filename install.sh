@@ -208,17 +208,31 @@ EOF
   echo "If your photo library is on a mounted drive, grant access:"
   echo "  usermod -aG <mountgroup> ${SERVICE_USER}"
   echo ""
+  # Detect Linux distribution and show only relevant install commands
+  DISTRO=""
+  if grep -q "Alpine" /etc/*release 2>/dev/null; then
+    DISTRO="alpine"
+  elif grep -q "Debian" /etc/*release 2>/dev/null || grep -q "Ubuntu" /etc/*release 2>/dev/null; then
+    DISTRO="debian"
+  fi
+
   echo "Optional dependencies:"
   echo ""
   echo "  ffmpeg — video thumbnails + video transcoding:"
-  echo "    Alpine:  apk add ffmpeg"
-  echo "    Debian:  apt install ffmpeg"
+  if [ "${DISTRO}" = "alpine" ]; then
+    echo "    Alpine:  apk add ffmpeg"
+  elif [ "${DISTRO}" = "debian" ]; then
+    echo "    Debian:  apt install ffmpeg"
+  fi
   echo ""
   echo "  ImageMagick — HEIC/AVIF/TIFF image support (recommended):"
-  echo "    Alpine:  apk add imagemagick imagemagick-heic"
-  echo "    Debian:  apt install imagemagick libheif1"
-  echo "  Note: libheif enables HEIC/HEIF decoding in ImageMagick."
-  echo "        Without it, visiorama falls back to ffmpeg for those formats."
+  if [ "${DISTRO}" = "alpine" ]; then
+    echo "    Alpine:  apk add imagemagick imagemagick-heic"
+  elif [ "${DISTRO}" = "debian" ]; then
+    echo "    Debian:  apt install imagemagick libheif1"
+    echo "    Note: libheif enables HEIC/HEIF decoding in ImageMagick."
+    echo "          Without it, visiorama falls back to ffmpeg for those formats."
+  fi
 }
 
 main "$@"
