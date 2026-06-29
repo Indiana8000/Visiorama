@@ -125,6 +125,15 @@ function mapStateQuery(mapInstance) {
   return q
 }
 
+function getBestAnchor(mapInstance, point) {
+  const canvas = mapInstance.getCanvas()
+  const w = canvas.clientWidth
+  const h = canvas.clientHeight
+  const vertical = point.y > h / 2 ? 'bottom' : 'top'
+  const horizontal = point.x < w * 0.3 ? '-left' : point.x > w * 0.7 ? '-right' : ''
+  return vertical + horizontal
+}
+
 function showThumbnailPopup(mapInstance, lngLat, point) {
   if (popup) { popup.remove(); popup = null }
 
@@ -143,17 +152,18 @@ function showThumbnailPopup(mapInstance, lngLat, point) {
   const MAX = 12
   const shown = allIds.slice(0, MAX)
   const more = allIds.length > MAX
-    ? `<div style="font-size:12px;color:#888;padding:4px 2px;">+${allIds.length - MAX} more</div>`
+    ? `<div class="thumb-more-badge">+${allIds.length - MAX} weitere</div>`
     : ''
 
   const imgs = shown.map(id =>
-    `<img data-id="${id}" src="${BASE}/api/media/${id}/thumbnail?size=320"
-      style="width:88px;height:88px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0;" />`
+    `<img data-id="${id}" src="${BASE}/api/media/${id}/thumbnail?size=320" class="thumb-img" />`
   ).join('')
 
-  popup = new maplibregl.Popup({ closeButton: true, maxWidth: '320px', offset: 12 })
+  const label = allIds.length === 1 ? '1 Foto' : `${allIds.length} Fotos`
+
+  popup = new maplibregl.Popup({ closeButton: true, maxWidth: '294px', offset: 12, anchor: getBestAnchor(mapInstance, point) })
     .setLngLat(lngLat)
-    .setHTML(`<div style="display:flex;flex-wrap:wrap;gap:6px;padding:4px;">${imgs}${more}</div>`)
+    .setHTML(`<div class="thumb-popup-inner"><div class="thumb-popup-header">${label}</div><div class="thumb-grid">${imgs}</div>${more}</div>`)
     .addTo(mapInstance)
 
   popup.getElement().addEventListener('click', (e) => {
@@ -257,5 +267,88 @@ onUnmounted(() => {
 .map-container {
   flex: 1;
   width: 100%;
+}
+</style>
+
+<style>
+/* MapLibre popup content is injected outside scoped DOM — must be global */
+.maplibregl-popup-content {
+  border: 1px solid #3b82f6;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+  padding: 0;
+}
+
+.thumb-popup-inner {
+  padding: 8px;
+}
+
+.thumb-popup-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3b82f6;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+
+.thumb-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.thumb-img {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  border: 2px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.thumb-img:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  border-color: #3b82f6;
+}
+
+.thumb-more-badge {
+  display: block;
+  margin-top: 8px;
+  padding: 3px 10px;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  width: fit-content;
+  margin-left: auto;
+}
+
+/* Override MapLibre close button */
+.maplibregl-popup-close-button {
+  width: 22px;
+  height: 22px;
+  top: 6px;
+  right: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.maplibregl-popup-close-button:hover {
+  background: #2563eb;
 }
 </style>
