@@ -40,7 +40,9 @@ type LibraryConfig struct {
 type ScanConfig struct {
 	DefaultMode         string `yaml:"defaultMode"`
 	QuickFallbackToFull bool   `yaml:"quickFallbackToFull"`
-	MaxWorkers          int    `yaml:"maxWorkers"`
+	// MaxWorkers sets the number of concurrent media processing goroutines.
+	// 0 (default) means auto-detect: runtime.NumCPU() is used at scan time.
+	MaxWorkers int `yaml:"maxWorkers"`
 	// IgnoreDirMtime disables directory mtime comparison in quick scan.
 	// Required for CIFS/SMB shares where the kernel does not update dir mtime on file changes.
 	IgnoreDirMtime bool `yaml:"ignoreDirMtime"`

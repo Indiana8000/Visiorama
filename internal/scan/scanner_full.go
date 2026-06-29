@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -119,6 +120,9 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 
 	jobs := make(chan workItem, 256)
 	workers := s.cfg.Scan.MaxWorkers
+	if workers <= 0 {
+		workers = runtime.NumCPU()
+	}
 
 	const progressEveryN = 100
 	var lastReported atomic.Int64
@@ -160,7 +164,7 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 				if _, err := mediaRepo.Upsert(m); err != nil {
 					stats.ErrCount.Add(1)
 					_ = scanRepo.AddError(scanID, item.relPath, err.Error())
-					slog.Warn("upsert media", "path", item.relPath, "err", err)
+					slog.Warn("full scan: upsert media", "path", item.relPath, "err", err)
 					continue
 				}
 				newIdx := stats.Indexed.Add(1)
@@ -265,6 +269,7 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 	close(jobs)
 	wg.Wait()
 	cancelTick()
+	flush() // final flush after all workers done
 
 	var seenMediaCount, seenAlbumCount int
 	_ = db.QueryRow(`SELECT COUNT(*) FROM _seen_media`).Scan(&seenMediaCount)

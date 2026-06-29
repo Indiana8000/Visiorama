@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/Indiana8000/visiorama/internal/app"
@@ -133,6 +134,9 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, onPro
 
 	jobs := make(chan workItem, 256)
 	workers := s.cfg.Scan.MaxWorkers
+	if workers <= 0 {
+		workers = runtime.NumCPU()
+	}
 
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -258,13 +262,17 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, onPro
 
 		dirsChecked++
 		if onProgress != nil {
-			onProgress(dirsChecked, stats.Indexed.Load(), stats.Skipped.Load(), stats.ErrCount.Load())
+			onProgress(stats.Scanned.Load(), stats.Indexed.Load(), stats.Skipped.Load(), stats.ErrCount.Load())
 		}
 		slog.Debug("quick scan: dir done", "dir", changedRelPath, "checked", dirsChecked, "total", totalDirs)
 	}
 
 	close(jobs)
 	wg.Wait()
+
+	if ctx.Err() != nil {
+		return stats, false, ctx.Err()
+	}
 
 	// --- Step 4: Prune orphan media inside changed dirs ---
 	// Files that existed before but are now gone won't be re-upserted, so we
@@ -280,9 +288,17 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, onPro
 			absP := filepath.Join(root, filepath.FromSlash(p))
 			if _, statErr := os.Stat(absP); os.IsNotExist(statErr) {
 				if err := mediaRepo.DeleteByPath(p); err != nil {
+					stats.ErrCount.Add(1)
 					slog.Warn("quick scan: delete orphan media", "path", p, "err", err)
+				} else {
+					slog.Info("quick scan: orphan deleted", "path", p)
 				}
 			}
+		}
+		// Re-persist mtime after pruning so the next quick scan doesn't treat
+		// this directory as changed again due to the deletion updating dir mtime.
+		if info, statErr := os.Stat(filepath.Join(root, filepath.FromSlash(relPath))); statErr == nil {
+			_ = UpdateDirMtimeNs(db, relPath, info.ModTime().UnixNano())
 		}
 	}
 
