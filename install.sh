@@ -159,6 +159,7 @@ library:
 scan:
   defaultMode: quick
   quickFallbackToFull: true
+  ignoreDirMtime: false
   maxWorkers: 0
 
 filtering:
