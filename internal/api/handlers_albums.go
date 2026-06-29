@@ -187,9 +187,8 @@ func (h *albumsHandler) albumsByMediaIDs(w http.ResponseWriter, r *http.Request)
 		badRequest(w, "ids must be a non-empty array of integers")
 		return
 	}
-	if len(body.IDs) > 500 {
-		badRequest(w, "ids must not exceed 500 entries")
-		return
+	if len(body.IDs) > 999 {
+		body.IDs = body.IDs[:999]
 	}
 	albumRepo := repositories.NewAlbumsRepo(h.store.DB())
 	matches, err := albumRepo.AlbumsByMediaIDs(body.IDs)

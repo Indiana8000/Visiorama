@@ -1,16 +1,11 @@
 <template>
   <div class="map-view">
-    <div class="map-toolbar">
-      <button class="btn-back" @click="goBack">← Back</button>
-      <span class="map-title">{{ title }}</span>
-
-    </div>
     <div ref="mapContainer" class="map-container" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -25,15 +20,6 @@ const router = useRouter()
 const mapContainer = ref(null)
 let map = null
 
-const title = computed(() => props.albumId ? 'Album on Map' : 'All Photos on Map')
-
-function goBack() {
-  if (props.albumId) {
-    router.push(`/album/${props.albumId}`)
-  } else {
-    router.push('/')
-  }
-}
 
 function getBBox(mapInstance) {
   const bounds = mapInstance.getBounds()
@@ -154,13 +140,13 @@ function buildAlbumsHTML(albums, BASE) {
     const cover = a.coverThumbnailUrl
       ? `<img src="${BASE}${a.coverThumbnailUrl}" class="thumb-album-cover" />`
       : `<div class="thumb-album-cover thumb-album-cover--empty"></div>`
-    return `<div class="thumb-album-row" data-album-id="${a.id}">
+    return `<a class="thumb-album-row" href="/album/${a.id}">
       ${cover}
       <div class="thumb-album-info">
         <div class="thumb-album-name">${a.name}</div>
         <div class="thumb-album-count">${a.matchCount} Foto${a.matchCount !== 1 ? 's' : ''}</div>
       </div>
-    </div>`
+    </a>`
   }).join('')
   return `<div class="thumb-albums-list">${rows}</div>`
 }
@@ -181,11 +167,7 @@ async function showThumbnailPopup(mapInstance, lngLat, point) {
 
   const BASE = import.meta.env.VITE_API_BASE || ''
   const label = allIds.length === 1 ? '1 Foto' : `${allIds.length} Fotos`
-  const showAlbumsToggle = allIds.length > 12
-
-  const toggleBtn = showAlbumsToggle
-    ? `<button class="thumb-toggle-btn" data-action="albums">📁 Alben</button>`
-    : ''
+  const toggleBtn = `<button class="thumb-toggle-btn" data-action="albums">📁 Alben</button>`
 
   popup = new maplibregl.Popup({ closeButton: false, maxWidth: '294px', offset: 12, anchor: getBestAnchor(mapInstance, point) })
     .setLngLat(lngLat)
@@ -210,14 +192,6 @@ async function showThumbnailPopup(mapInstance, lngLat, point) {
       return
     }
 
-    // navigate to album
-    const albumRow = e.target.closest('[data-album-id]')
-    if (albumRow) {
-      popup.remove(); popup = null
-      router.push(`/album/${albumRow.dataset.albumId}`)
-      return
-    }
-
     // close popup
     const action = e.target.closest('[data-action]')?.dataset.action
     if (action === 'close') {
@@ -229,7 +203,7 @@ async function showThumbnailPopup(mapInstance, lngLat, point) {
       const body = popup.getElement().querySelector('.thumb-popup-body')
       body.innerHTML = `<div class="thumb-albums-loading">Lade Alben…</div>`
       if (!albumsCache) {
-        try { albumsCache = await api.getAlbumsByMediaIDs(allIds) } catch { albumsCache = [] }
+        try { albumsCache = await api.getAlbumsByMediaIDs(allIds.slice(0, 999)) } catch { albumsCache = [] }
       }
       body.innerHTML = buildAlbumsHTML(albumsCache, BASE)
       const toggleBtn = popup.getElement().querySelector('.thumb-toggle-btn')
@@ -308,35 +282,6 @@ onUnmounted(() => {
   width: 100%;
 }
 
-.map-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  background: #1e1e2e;
-  border-bottom: 1px solid #313244;
-  flex-shrink: 0;
-}
-
-.btn-back {
-  background: #313244;
-  border: none;
-  color: #cdd6f4;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.btn-back:hover {
-  background: #45475a;
-}
-
-.map-title {
-  color: #cdd6f4;
-  font-size: 15px;
-  font-weight: 500;
-}
 
 .map-container {
   flex: 1;
@@ -429,6 +374,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .thumb-album-row {
@@ -439,6 +386,8 @@ onUnmounted(() => {
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s ease;
+  text-decoration: none;
+  color: inherit;
 }
 
 .thumb-album-row:hover {
@@ -465,7 +414,7 @@ onUnmounted(() => {
 .thumb-album-name {
   font-size: 13px;
   font-weight: 500;
-  color: #cdd6f4;
+  color: #3b82f6;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -473,7 +422,7 @@ onUnmounted(() => {
 
 .thumb-album-count {
   font-size: 11px;
-  color: #3b82f6;
+  color: #cdd6f4;
   font-weight: 600;
 }
 
