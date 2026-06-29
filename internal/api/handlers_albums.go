@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -176,6 +177,42 @@ func (h *albumsHandler) buildAndWrite(w http.ResponseWriter, albumRepo *reposito
 			HasPrev:    page > 1,
 		},
 	})
+}
+
+func (h *albumsHandler) albumsByMediaIDs(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.IDs) == 0 {
+		badRequest(w, "ids must be a non-empty array of integers")
+		return
+	}
+	if len(body.IDs) > 500 {
+		badRequest(w, "ids must not exceed 500 entries")
+		return
+	}
+	albumRepo := repositories.NewAlbumsRepo(h.store.DB())
+	matches, err := albumRepo.AlbumsByMediaIDs(body.IDs)
+	if err != nil {
+		internalError(w)
+		return
+	}
+	result := make([]AlbumMatch, len(matches))
+	for i, m := range matches {
+		am := AlbumMatch{
+			ID:           m.ID,
+			RelativePath: m.RelativePath,
+			Name:         m.Name,
+			MatchCount:   m.MatchCount,
+		}
+		if coverID, _ := albumRepo.CoverMediaID(m.ID); coverID != nil {
+			url := fmt.Sprintf("/api/media/%d/thumbnail", *coverID)
+			am.CoverMediaID = coverID
+			am.CoverThumbnailURL = &url
+		}
+		result[i] = am
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func parsePagination(w http.ResponseWriter, r *http.Request) (page, pageSize int, ok bool) {

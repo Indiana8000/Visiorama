@@ -3,6 +3,7 @@ package repositories
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 type Album struct {
@@ -207,6 +208,48 @@ func (r *AlbumsRepo) coverMediaIDRecursive(albumID int64, depth int) (*int64, er
 		}
 	}
 	return nil, nil
+}
+
+type AlbumMatchRow struct {
+	Album
+	MatchCount int
+}
+
+// AlbumsByMediaIDs returns albums that contain at least one of the given media IDs,
+// with a count of how many of the given IDs belong to each album, sorted descending.
+func (r *AlbumsRepo) AlbumsByMediaIDs(ids []int64) ([]AlbumMatchRow, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := r.db.Query(`
+		SELECT a.id, a.relative_path, a.name, a.parent_album_id,
+		       a.media_count_direct, a.media_count_recursive, a.child_album_count,
+		       COUNT(m.id) AS match_count
+		FROM albums a
+		JOIN media m ON m.album_id = a.id AND m.id IN (`+placeholders+`)
+		GROUP BY a.id
+		ORDER BY match_count DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AlbumMatchRow
+	for rows.Next() {
+		var row AlbumMatchRow
+		if err := rows.Scan(&row.ID, &row.RelativePath, &row.Name, &row.ParentAlbumID,
+			&row.MediaCountDirect, &row.MediaCountRecursive, &row.ChildAlbumCount,
+			&row.MatchCount); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
 }
 
 func scanAlbum(row *sql.Row) (*Album, error) {

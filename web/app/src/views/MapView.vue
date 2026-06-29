@@ -134,7 +134,38 @@ function getBestAnchor(mapInstance, point) {
   return vertical + horizontal
 }
 
-function showThumbnailPopup(mapInstance, lngLat, point) {
+function buildThumbsHTML(allIds, BASE) {
+  const MAX = 12
+  const shown = allIds.slice(0, MAX)
+  const imgs = shown.map(id =>
+    `<img data-id="${id}" src="${BASE}/api/media/${id}/thumbnail?size=320" class="thumb-img" />`
+  ).join('')
+  const more = allIds.length > MAX
+    ? `<div class="thumb-more-badge" data-action="albums">+${allIds.length - MAX} weitere in Alben</div>`
+    : ''
+  return `<div class="thumb-grid">${imgs}</div>${more}`
+}
+
+function buildAlbumsHTML(albums, BASE) {
+  if (!albums || albums.length === 0) {
+    return `<div class="thumb-albums-empty">Keine Alben gefunden</div>`
+  }
+  const rows = albums.map(a => {
+    const cover = a.coverThumbnailUrl
+      ? `<img src="${BASE}${a.coverThumbnailUrl}" class="thumb-album-cover" />`
+      : `<div class="thumb-album-cover thumb-album-cover--empty"></div>`
+    return `<div class="thumb-album-row" data-album-id="${a.id}">
+      ${cover}
+      <div class="thumb-album-info">
+        <div class="thumb-album-name">${a.name}</div>
+        <div class="thumb-album-count">${a.matchCount} Foto${a.matchCount !== 1 ? 's' : ''}</div>
+      </div>
+    </div>`
+  }).join('')
+  return `<div class="thumb-albums-list">${rows}</div>`
+}
+
+async function showThumbnailPopup(mapInstance, lngLat, point) {
   if (popup) { popup.remove(); popup = null }
 
   // queryRenderedFeatures collects ALL stacked markers at the click pixel
@@ -149,28 +180,71 @@ function showThumbnailPopup(mapInstance, lngLat, point) {
   if (allIds.length === 0) return
 
   const BASE = import.meta.env.VITE_API_BASE || ''
-  const MAX = 12
-  const shown = allIds.slice(0, MAX)
-  const more = allIds.length > MAX
-    ? `<div class="thumb-more-badge">+${allIds.length - MAX} weitere</div>`
+  const label = allIds.length === 1 ? '1 Foto' : `${allIds.length} Fotos`
+  const showAlbumsToggle = allIds.length > 12
+
+  const toggleBtn = showAlbumsToggle
+    ? `<button class="thumb-toggle-btn" data-action="albums">📁 Alben</button>`
     : ''
 
-  const imgs = shown.map(id =>
-    `<img data-id="${id}" src="${BASE}/api/media/${id}/thumbnail?size=320" class="thumb-img" />`
-  ).join('')
-
-  const label = allIds.length === 1 ? '1 Foto' : `${allIds.length} Fotos`
-
-  popup = new maplibregl.Popup({ closeButton: true, maxWidth: '294px', offset: 12, anchor: getBestAnchor(mapInstance, point) })
+  popup = new maplibregl.Popup({ closeButton: false, maxWidth: '294px', offset: 12, anchor: getBestAnchor(mapInstance, point) })
     .setLngLat(lngLat)
-    .setHTML(`<div class="thumb-popup-inner"><div class="thumb-popup-header">${label}</div><div class="thumb-grid">${imgs}</div>${more}</div>`)
+    .setHTML(`<div class="thumb-popup-inner">
+      <div class="thumb-popup-header-row">
+        ${toggleBtn}
+        <button class="thumb-close-btn" data-action="close">✕</button>
+      </div>
+      <div class="thumb-popup-body" style="min-width:262px;">${buildThumbsHTML(allIds, BASE)}</div>
+    </div>`)
     .addTo(mapInstance)
 
-  popup.getElement().addEventListener('click', (e) => {
+  let albumsCache = null
+  let mode = 'thumbs'
+
+  popup.getElement().addEventListener('click', async (e) => {
+    // navigate to media
     const img = e.target.closest('img[data-id]')
-    if (!img) return
-    popup.remove(); popup = null
-    router.push(`/media/${img.dataset.id}?${mapStateQuery(mapInstance)}`)
+    if (img) {
+      popup.remove(); popup = null
+      router.push(`/media/${img.dataset.id}?${mapStateQuery(mapInstance)}`)
+      return
+    }
+
+    // navigate to album
+    const albumRow = e.target.closest('[data-album-id]')
+    if (albumRow) {
+      popup.remove(); popup = null
+      router.push(`/album/${albumRow.dataset.albumId}`)
+      return
+    }
+
+    // close popup
+    const action = e.target.closest('[data-action]')?.dataset.action
+    if (action === 'close') {
+      popup.remove(); popup = null
+      return
+    }
+    if (action === 'albums' && mode !== 'albums') {
+      mode = 'albums'
+      const body = popup.getElement().querySelector('.thumb-popup-body')
+      body.innerHTML = `<div class="thumb-albums-loading">Lade Alben…</div>`
+      if (!albumsCache) {
+        try { albumsCache = await api.getAlbumsByMediaIDs(allIds) } catch { albumsCache = [] }
+      }
+      body.innerHTML = buildAlbumsHTML(albumsCache, BASE)
+      const toggleBtn = popup.getElement().querySelector('.thumb-toggle-btn')
+      if (toggleBtn) { toggleBtn.textContent = '📷 Fotos'; toggleBtn.dataset.action = 'thumbs' }
+      return
+    }
+
+    // toggle back to thumbs
+    if (action === 'thumbs' && mode !== 'thumbs') {
+      mode = 'thumbs'
+      const body = popup.getElement().querySelector('.thumb-popup-body')
+      body.innerHTML = buildThumbsHTML(allIds, BASE)
+      const toggleBtn = popup.getElement().querySelector('.thumb-toggle-btn')
+      if (toggleBtn) { toggleBtn.textContent = '📁 Alben'; toggleBtn.dataset.action = 'albums' }
+    }
   })
 }
 
@@ -327,28 +401,109 @@ onUnmounted(() => {
   margin-left: auto;
 }
 
-/* Override MapLibre close button */
-.maplibregl-popup-close-button {
+.thumb-popup-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.thumb-toggle-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #3b82f6;
+  background: transparent;
+  color: #3b82f6;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.thumb-toggle-btn:hover {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.thumb-albums-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.thumb-album-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.thumb-album-row:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.thumb-album-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.thumb-album-cover--empty {
+  background: #313244;
+}
+
+.thumb-album-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.thumb-album-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #cdd6f4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thumb-album-count {
+  font-size: 11px;
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.thumb-albums-loading,
+.thumb-albums-empty {
+  font-size: 12px;
+  color: #888;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.thumb-close-btn {
   width: 22px;
   height: 22px;
-  top: 6px;
-  right: 6px;
   border-radius: 50%;
   background: #3b82f6;
   color: #fff;
-  font-size: 14px;
-  line-height: 22px;
-  text-align: center;
+  font-size: 12px;
   border: none;
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   transition: background 0.15s ease;
+  margin-left: 4px;
 }
 
-.maplibregl-popup-close-button:hover {
+.thumb-close-btn:hover {
   background: #2563eb;
 }
 </style>

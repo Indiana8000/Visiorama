@@ -115,4 +115,13 @@ export const api = {
   getAlbumGPSCount(albumId) {
     return request(`/api/albums/${albumId}/gps-count`)
   },
+
+  /** POST /api/albums/by-media-ids */
+  getAlbumsByMediaIDs(ids) {
+    return request('/api/albums/by-media-ids', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+  },
 }

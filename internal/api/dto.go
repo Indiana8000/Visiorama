@@ -62,6 +62,15 @@ type MediaMetadata struct {
 	WarningLargeMedia bool     `json:"warningLargeMedia"`
 }
 
+type AlbumMatch struct {
+	ID                int64   `json:"id"`
+	RelativePath      string  `json:"relativePath"`
+	Name              string  `json:"name"`
+	MatchCount        int     `json:"matchCount"`
+	CoverMediaID      *int64  `json:"coverMediaId"`
+	CoverThumbnailURL *string `json:"coverThumbnailUrl"`
+}
+
 type AlbumResponse struct {
 	Album       Album        `json:"album"`
 	Breadcrumbs []Breadcrumb `json:"breadcrumbs"`

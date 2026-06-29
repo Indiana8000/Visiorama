@@ -19,6 +19,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	ah := &albumsHandler{store: store}
 	mux.HandleFunc("GET /api/albums/root", ah.getRoot)
 	mux.HandleFunc("GET /api/albums/by-path", ah.getByPath)
+	mux.HandleFunc("POST /api/albums/by-media-ids", ah.albumsByMediaIDs)
 	mux.HandleFunc("GET /api/albums/{albumId}", ah.getByID)
 
 	thumbSem := make(chan struct{}, cfg.Scan.MaxWorkers)
