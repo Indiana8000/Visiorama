@@ -1,5 +1,5 @@
 <template>
-  <div class="lightbox-view">
+  <div class="lightbox-view" :class="{ 'lb-slideshow-fullscreen': slideshowActive }">
     <div v-if="store.loading" class="state-msg">Loading…</div>
     <div v-else-if="store.error" class="state-msg state-msg--error">{{ store.error }}</div>
     <template v-else-if="media">
@@ -7,30 +7,53 @@
       <div class="lb-topbar">
         <button class="lb-back" @click="goBack">&#8592; {{ backLabel }}</button>
         <span class="lb-filename">{{ media.filename }}</span>
+        <button
+          v-if="slideshowImages.length > 1 && !slideshowActive"
+          class="lb-slideshow-btn"
+          @click="startSlideshow"
+        >&#9654; Slideshow</button>
       </div>
 
       <!-- Media viewer -->
-      <div class="lb-stage">
-        <!-- Prev/Next navigation (uses sibling media from store.currentAlbum if available) -->
+      <div class="lb-stage" @mousemove="slideshowActive && scheduleSsControlsHide()">
+        <!-- Prev/Next navigation (hidden during slideshow) -->
         <button
-          v-if="prevMedia"
+          v-if="prevMedia && !slideshowActive"
           class="lb-nav lb-nav--prev"
           :title="prevMedia.filename"
           @click="navigate(prevMedia.id)"
         >&#8249;</button>
 
         <div class="lb-content">
-          <div v-if="media.type === 'image'" class="lb-img-wrap">
-            <img
-              v-show="!imgConvertFailed"
-              :key="'img-' + media.id + '-' + imgUseConvert"
-              :src="imgSrc"
-              :alt="media.filename"
-              class="lb-img"
-              :class="{ 'lb-img--warn': media.warningLargeMedia }"
-              @error="onImgError"
-              @load="onImgLoad"
-            />
+          <div
+            v-if="media.type === 'image'"
+            ref="imgWrap"
+            class="lb-img-wrap"
+            :class="{ 'lb-img-wrap--zoomed': zoomScale > 1, 'lb-img-wrap--panning': isZoomPanning }"
+            @wheel.prevent="onWheel"
+            @mousedown="onMousedown"
+            @mousemove="onMousemove"
+            @mouseup="onMouseup"
+            @mouseleave="onMouseup"
+            @click="onImgWrapClick"
+            @touchstart="onTouchstart"
+            @touchmove="onTouchmove"
+            @touchend="onTouchend"
+          >
+            <transition :name="slideshowActive ? 'lb-slide' : ''">
+              <img
+                v-show="!imgConvertFailed"
+                :key="'img-' + media.id + '-' + imgUseConvert"
+                :src="imgSrc"
+                :alt="media.filename"
+                class="lb-img"
+                :class="{ 'lb-img--warn': media.warningLargeMedia }"
+                :style="!slideshowActive ? imgTransformStyle : undefined"
+                draggable="false"
+                @error="onImgError"
+                @load="onImgLoad"
+              />
+            </transition>
             <span v-if="imgUseConvert && imgConvertLoaded && !imgConvertFailed" class="lb-img-badge">&#9432; Reduced quality</span>
             <div v-if="imgConvertFailed" class="lb-missing">
               <span class="lb-missing-icon">&#128247;</span>
@@ -67,20 +90,35 @@
         </div>
 
         <button
-          v-if="nextMedia"
+          v-if="nextMedia && !slideshowActive"
           class="lb-nav lb-nav--next"
           :title="nextMedia.filename"
           @click="navigate(nextMedia.id)"
         >&#8250;</button>
+
+        <!-- Slideshow controls -->
+        <div
+          v-if="slideshowActive"
+          class="lb-ss-controls"
+          :class="{ 'lb-ss-controls--hidden': ssControlsHidden }"
+          @mouseenter="onSsControlsMouseenter"
+          @mouseleave="onSsControlsMouseleave"
+        >
+          <button class="lb-ss-ctrl-btn" :title="slideshowPaused ? 'Resume' : 'Pause'" @click="toggleSlideshowPause">
+            <span v-if="slideshowPaused">&#9654;</span>
+            <span v-else>&#9208;</span>
+          </button>
+          <button class="lb-ss-ctrl-btn lb-ss-ctrl-btn--stop" title="Stop slideshow" @click="stopSlideshow">&#9209;</button>
+        </div>
       </div>
 
       <!-- Large file warning -->
-      <div v-if="media.warningLargeMedia" class="lb-warning">
+      <div v-if="media.warningLargeMedia && !slideshowActive" class="lb-warning">
         &#9888; This file is large and may take time to load.
       </div>
 
       <!-- Metadata panel -->
-      <div class="lb-meta">
+      <div v-if="!slideshowActive" class="lb-meta">
         <h2 class="lb-meta-title">Details</h2>
         <dl class="lb-meta-list">
           <template v-if="media.captureDate">
@@ -125,6 +163,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useGalleryStore } from '../stores/gallery.js'
 import { api } from '../api/client.js'
 
+const SLIDESHOW_INTERVAL = 4000
+
 const props = defineProps({
   id: { type: String, required: true },
 })
@@ -133,21 +173,43 @@ const route = useRoute()
 const router = useRouter()
 const store = useGalleryStore()
 
-const BASE = import.meta.env.VITE_API_BASE || ''
-
-// Use route.params directly — always in sync, no prop-update race
 const mediaId = computed(() => parseInt(route.params.id, 10))
 const media = computed(() => store.currentMedia)
 
+// --- Existing image/video state ---
 const imgConvertFailed = ref(false)
 const imgUseConvert = ref(false)
 const imgConvertLoaded = ref(false)
 const transcodeError = ref(false)
 const transcodeJobId = ref(null)
-const transcodeStatus = ref(null) // null | 'queued' | 'running' | 'success' | 'failed'
+const transcodeStatus = ref(null)
 const transcodeErrMsg = ref(null)
 let transcodePoller = null
 
+// --- Zoom state ---
+const imgWrap = ref(null)
+const zoomScale = ref(1)
+const panX = ref(0)
+const panY = ref(0)
+const isZoomPanning = ref(false)
+let wasDragging = false
+let panStart = { x: 0, y: 0 }
+let pinchStartDist = 0
+let pinchStartScale = 1
+
+const imgTransformStyle = computed(() => ({
+  transform: `translate(${panX.value}px, ${panY.value}px) scale(${zoomScale.value})`,
+  transformOrigin: 'center center',
+}))
+
+// --- Slideshow state ---
+const slideshowActive = ref(false)
+const slideshowPaused = ref(false)
+let slideshowTimer = null
+const ssControlsHidden = ref(false)
+let ssControlsHideTimer = null
+
+// --- Computed ---
 const imgSrc = computed(() => {
   if (!media.value) return ''
   if (imgUseConvert.value) return api.convertUrl(media.value.id)
@@ -160,9 +222,8 @@ const streamSrc = computed(() => {
   }
   return media.value ? api.streamUrl(media.value.id) : ''
 })
-const thumbSrc  = computed(() => media.value ? api.thumbnailUrl(media.value.id, 480) : '')
+const thumbSrc = computed(() => media.value ? api.thumbnailUrl(media.value.id, 480) : '')
 
-// Sibling navigation — load parent album if not already in store
 const siblings = computed(() => store.currentAlbum?.media ?? [])
 const siblingIndex = computed(() => siblings.value.findIndex(m => m.id === mediaId.value))
 const prevMedia = computed(() => siblingIndex.value > 0 ? siblings.value[siblingIndex.value - 1] : null)
@@ -171,11 +232,13 @@ const nextMedia = computed(() => {
   return idx >= 0 && idx < siblings.value.length - 1 ? siblings.value[idx + 1] : null
 })
 
+const slideshowImages = computed(() => siblings.value.filter(m => m.type === 'image'))
+
 const fromMap = computed(() => route.query.from === 'map')
 const backLabel = computed(() => fromMap.value ? 'Back to map' : 'Back to album')
 
+// --- Navigation ---
 function navigate(id) {
-  // Preserve map query params when navigating between siblings opened from map
   const q = fromMap.value ? { ...route.query } : {}
   router.push({ name: 'media', params: { id }, query: q })
 }
@@ -196,6 +259,7 @@ function goBack() {
   }
 }
 
+// --- Formatters ---
 function formatDate(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleString()
@@ -217,6 +281,7 @@ function formatDuration(ms) {
   return `${s}s`
 }
 
+// --- Image loading ---
 function onImgLoad() {
   if (imgUseConvert.value) imgConvertLoaded.value = true
 }
@@ -245,6 +310,7 @@ function onVideoMetadata(e) {
   }
 }
 
+// --- Transcode ---
 async function startTranscode() {
   transcodeStatus.value = 'queued'
   transcodeErrMsg.value = null
@@ -287,13 +353,191 @@ function resetTranscodeState() {
   transcodeErrMsg.value = null
 }
 
+// --- Zoom ---
+function resetZoom() {
+  zoomScale.value = 1
+  panX.value = 0
+  panY.value = 0
+}
+
+function onImgWrapClick() {
+  if (wasDragging) { wasDragging = false; return }
+  if (slideshowActive.value) return
+  if (zoomScale.value !== 1) {
+    resetZoom()
+  } else {
+    zoomScale.value = 2
+  }
+}
+
+function onWheel(e) {
+  if (slideshowActive.value) return
+  const factor = e.deltaY > 0 ? 0.85 : 1.18
+  const newScale = Math.max(1, Math.min(10, zoomScale.value * factor))
+
+  if (newScale === 1) {
+    zoomScale.value = 1
+    panX.value = 0
+    panY.value = 0
+    return
+  }
+
+  const wrap = imgWrap.value
+  if (wrap) {
+    const rect = wrap.getBoundingClientRect()
+    const relX = e.clientX - (rect.left + rect.width / 2)
+    const relY = e.clientY - (rect.top + rect.height / 2)
+    const ratio = newScale / zoomScale.value
+    panX.value = relX + (panX.value - relX) * ratio
+    panY.value = relY + (panY.value - relY) * ratio
+  }
+  zoomScale.value = newScale
+}
+
+function onMousedown(e) {
+  if (zoomScale.value <= 1 || slideshowActive.value) return
+  isZoomPanning.value = true
+  wasDragging = false
+  panStart = { x: e.clientX - panX.value, y: e.clientY - panY.value }
+  e.preventDefault()
+}
+
+function onMousemove(e) {
+  if (!isZoomPanning.value) return
+  wasDragging = true
+  panX.value = e.clientX - panStart.x
+  panY.value = e.clientY - panStart.y
+}
+
+function onMouseup() {
+  isZoomPanning.value = false
+}
+
+function getTouchDist(touches) {
+  const dx = touches[0].clientX - touches[1].clientX
+  const dy = touches[0].clientY - touches[1].clientY
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+function onTouchstart(e) {
+  if (slideshowActive.value) return
+  if (e.touches.length === 2) {
+    e.preventDefault()
+    pinchStartDist = getTouchDist(e.touches)
+    pinchStartScale = zoomScale.value
+  } else if (e.touches.length === 1 && zoomScale.value > 1) {
+    isZoomPanning.value = true
+    wasDragging = false
+    const t = e.touches[0]
+    panStart = { x: t.clientX - panX.value, y: t.clientY - panY.value }
+  }
+}
+
+function onTouchmove(e) {
+  if (slideshowActive.value) return
+  if (e.touches.length === 2) {
+    e.preventDefault()
+    const dist = getTouchDist(e.touches)
+    const newScale = Math.max(1, Math.min(10, pinchStartScale * dist / pinchStartDist))
+    zoomScale.value = newScale
+    if (newScale === 1) { panX.value = 0; panY.value = 0 }
+  } else if (isZoomPanning.value && e.touches.length === 1) {
+    e.preventDefault()
+    wasDragging = true
+    const t = e.touches[0]
+    panX.value = t.clientX - panStart.x
+    panY.value = t.clientY - panStart.y
+  }
+}
+
+function onTouchend() {
+  isZoomPanning.value = false
+}
+
+// --- Slideshow ---
+function scheduleSsControlsHide() {
+  clearTimeout(ssControlsHideTimer)
+  ssControlsHidden.value = false
+  ssControlsHideTimer = setTimeout(() => { ssControlsHidden.value = true }, 3000)
+}
+
+function onSsControlsMouseenter() {
+  clearTimeout(ssControlsHideTimer)
+  ssControlsHidden.value = false
+}
+
+function onSsControlsMouseleave() {
+  scheduleSsControlsHide()
+}
+
+function startSlideshow() {
+  const images = slideshowImages.value
+  if (images.length < 2) return
+  slideshowActive.value = true
+  slideshowPaused.value = false
+  const idx = images.findIndex(m => m.id === mediaId.value)
+  if (idx === -1) navigate(images[0].id)
+  scheduleSlideshowTick()
+  scheduleSsControlsHide()
+}
+
+function stopSlideshow() {
+  slideshowActive.value = false
+  slideshowPaused.value = false
+  clearTimeout(slideshowTimer)
+  slideshowTimer = null
+  clearTimeout(ssControlsHideTimer)
+  ssControlsHidden.value = false
+}
+
+function toggleSlideshowPause() {
+  if (!slideshowActive.value) return
+  slideshowPaused.value = !slideshowPaused.value
+  if (!slideshowPaused.value) {
+    scheduleSlideshowTick()
+  } else {
+    clearTimeout(slideshowTimer)
+    slideshowTimer = null
+  }
+}
+
+function scheduleSlideshowTick() {
+  clearTimeout(slideshowTimer)
+  slideshowTimer = setTimeout(slideshowAdvance, SLIDESHOW_INTERVAL)
+}
+
+function slideshowAdvance() {
+  const images = slideshowImages.value
+  if (!images.length) { stopSlideshow(); return }
+  const idx = images.findIndex(m => m.id === mediaId.value)
+  const nextIdx = idx === -1 ? 0 : (idx + 1) % images.length
+  navigate(images[nextIdx].id)
+  scheduleSlideshowTick()
+}
+
+// --- Load ---
 async function load(id) {
   resetTranscodeState()
+  resetZoom()
   await store.fetchMediaMetadata(id)
-  // Load parent album for sibling nav if not already loaded or stale
   if (store.currentMedia && store.currentAlbum?.album?.id !== store.currentMedia.albumId) {
     store.fetchAlbum(store.currentMedia.albumId, 1, 500)
   }
+}
+
+// --- Keyboard ---
+function onKey(e) {
+  if (slideshowActive.value) {
+    if (e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault()
+      toggleSlideshowPause()
+    }
+    if (e.key === 'Escape') stopSlideshow()
+    return
+  }
+  if (e.key === 'ArrowRight' && nextMedia.value) navigate(nextMedia.value.id)
+  if (e.key === 'ArrowLeft'  && prevMedia.value) navigate(prevMedia.value.id)
+  if (e.key === 'Escape') goBack()
 }
 
 onMounted(() => {
@@ -301,16 +545,12 @@ onMounted(() => {
   window.addEventListener('keydown', onKey)
 })
 
-function onKey(e) {
-  if (e.key === 'ArrowRight' && nextMedia.value) navigate(nextMedia.value.id)
-  if (e.key === 'ArrowLeft'  && prevMedia.value) navigate(prevMedia.value.id)
-  if (e.key === 'Escape') goBack()
-}
-
 onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
   clearInterval(transcodePoller)
+  stopSlideshow()
 })
+
 watch(mediaId, (id) => load(id))
 </script>
 
@@ -320,6 +560,57 @@ watch(mediaId, (id) => load(id))
   flex-direction: column;
   gap: 16px;
   padding-bottom: 40px;
+}
+
+/* Slideshow fullscreen mode */
+.lb-slideshow-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  padding-bottom: 0;
+  gap: 0;
+}
+.lb-slideshow-fullscreen .lb-topbar,
+.lb-slideshow-fullscreen .lb-warning,
+.lb-slideshow-fullscreen .lb-meta {
+  display: none;
+}
+.lb-slideshow-fullscreen .lb-stage {
+  flex: 1;
+  min-height: 0;
+  border-radius: 0;
+  max-height: 100vh;
+}
+.lb-slideshow-fullscreen .lb-content {
+  height: 100%;
+  max-height: 100vh;
+}
+.lb-slideshow-fullscreen .lb-img-wrap {
+  height: 100%;
+}
+.lb-slideshow-fullscreen .lb-img {
+  max-height: 100vh;
+}
+
+/* Slide transition */
+.lb-slide-enter-active,
+.lb-slide-leave-active {
+  transition: transform 0.35s ease;
+}
+.lb-slide-enter-from {
+  transform: translateX(100%);
+}
+.lb-slide-leave-to {
+  transform: translateX(-100%);
+}
+.lb-slide-leave-active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .lb-topbar {
@@ -337,6 +628,7 @@ watch(mediaId, (id) => load(id))
   padding: 5px 12px;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
 }
 .lb-back:hover { color: var(--accent); border-color: var(--accent); }
 .lb-filename {
@@ -345,7 +637,21 @@ watch(mediaId, (id) => load(id))
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
 }
+.lb-slideshow-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 13px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.lb-slideshow-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 .lb-stage {
   position: relative;
@@ -368,16 +674,57 @@ watch(mediaId, (id) => load(id))
 
 .lb-img-wrap {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  max-width: 100%;
+  width: 100%;
+  overflow: hidden;
+  cursor: zoom-in;
 }
+.lb-img-wrap--zoomed { cursor: grab; }
+.lb-img-wrap--panning { cursor: grabbing; }
+.lb-slideshow-fullscreen .lb-img-wrap { cursor: default; }
+
+.lb-ss-controls {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius, 6px);
+  padding: 6px 10px;
+  z-index: 20;
+  opacity: 0.8;
+  transition: opacity 0.4s ease;
+}
+.lb-ss-controls--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.lb-ss-ctrl-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.lb-ss-ctrl-btn:hover { color: var(--accent, #6ea8fe); }
+.lb-ss-ctrl-btn--stop:hover { color: #f08080; }
+
 .lb-img {
   max-width: 100%;
   max-height: 75vh;
   object-fit: contain;
   display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
 }
 .lb-img--warn { opacity: 0.9; }
 
