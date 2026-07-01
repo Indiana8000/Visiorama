@@ -19,11 +19,13 @@
       <section v-if="store.currentAlbum.childAlbums.length > 0" class="section">
         <h2 class="section-title">Albums</h2>
         <div class="grid grid--albums">
-          <AlbumTile
-            v-for="album in store.currentAlbum.childAlbums"
-            :key="album.id"
-            :album="album"
-          />
+          <template v-for="(album, index) in store.currentAlbum.childAlbums" :key="album.id">
+            <div
+              v-if="index > 0 && /^\d/.test(store.currentAlbum.childAlbums[index - 1].name) && !/^\d/.test(album.name)"
+              class="album-group-spacer"
+            />
+            <AlbumTile :album="album" />
+          </template>
         </div>
       </section>
 
@@ -151,6 +153,10 @@ watch(() => store.currentAlbum, (album) => {
 }
 .grid--albums {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+.album-group-spacer {
+  grid-column: 1 / -1;
+  height: 1rem;
 }
 .grid--media {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
