@@ -96,6 +96,9 @@
           @click="navigate(nextMedia.id)"
         >&#8250;</button>
 
+        <!-- Slideshow preload -->
+        <img v-if="slideshowActive && slideshowNextSrc" :src="slideshowNextSrc" class="lb-preload" aria-hidden="true" />
+
         <!-- Slideshow controls -->
         <div
           v-if="slideshowActive"
@@ -233,6 +236,16 @@ const nextMedia = computed(() => {
 })
 
 const slideshowImages = computed(() => siblings.value.filter(m => m.type === 'image'))
+
+const slideshowNextSrc = computed(() => {
+  if (!slideshowActive.value) return null
+  const images = slideshowImages.value
+  if (images.length < 2) return null
+  const idx = images.findIndex(m => m.id === mediaId.value)
+  const nextIdx = idx === -1 ? 0 : (idx + 1) % images.length
+  const next = images[nextIdx]
+  return next ? api.streamUrl(next.id) : null
+})
 
 const fromMap = computed(() => route.query.from === 'map')
 const backLabel = computed(() => fromMap.value ? 'Back to map' : 'Back to album')
@@ -684,6 +697,7 @@ watch(mediaId, (id) => load(id))
 .lb-img-wrap--zoomed { cursor: grab; }
 .lb-img-wrap--panning { cursor: grabbing; }
 .lb-slideshow-fullscreen .lb-img-wrap { cursor: default; }
+.lb-preload { display: none; }
 
 .lb-ss-controls {
   position: absolute;
