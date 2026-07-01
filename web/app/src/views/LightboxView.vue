@@ -42,9 +42,9 @@
           >
             <transition :name="slideshowActive ? 'lb-slide' : ''">
               <img
-                v-show="!imgConvertFailed"
-                :key="'img-' + media.id + '-' + imgUseConvert"
-                :src="imgSrc"
+                v-show="slideshowActive ? (slideshowReady && !slideshowConvertFailed) : !imgConvertFailed"
+                :key="slideshowActive ? 'ss-' + slideshowImgId + '-' + slideshowUseConvert : 'img-' + media.id + '-' + imgUseConvert"
+                :src="slideshowActive ? slideshowImgSrc : imgSrc"
                 :alt="media.filename"
                 class="lb-img"
                 :class="{ 'lb-img--warn': media.warningLargeMedia }"
@@ -97,7 +97,10 @@
         >&#8250;</button>
 
         <!-- Slideshow preload -->
-        <img v-if="slideshowActive && slideshowNextSrc" :src="slideshowNextSrc" class="lb-preload" aria-hidden="true" />
+        <template v-if="slideshowActive && slideshowNextId">
+          <img :src="slideshowNextSrc" class="lb-preload" aria-hidden="true" />
+          <img :src="slideshowNextConvertSrc" class="lb-preload" aria-hidden="true" />
+        </template>
 
         <!-- Slideshow controls -->
         <div
@@ -161,7 +164,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGalleryStore } from '../stores/gallery.js'
 import { api } from '../api/client.js'
@@ -211,6 +214,10 @@ const slideshowPaused = ref(false)
 let slideshowTimer = null
 const ssControlsHidden = ref(false)
 let ssControlsHideTimer = null
+const slideshowIdx = ref(0)
+const slideshowUseConvert = ref(false)
+const slideshowConvertFailed = ref(false)
+const slideshowReady = ref(false)
 
 // --- Computed ---
 const imgSrc = computed(() => {
@@ -237,15 +244,20 @@ const nextMedia = computed(() => {
 
 const slideshowImages = computed(() => siblings.value.filter(m => m.type === 'image'))
 
-const slideshowNextSrc = computed(() => {
+const slideshowImgId = computed(() => slideshowImages.value[slideshowIdx.value]?.id ?? null)
+const slideshowImgSrc = computed(() => {
+  const id = slideshowImgId.value
+  if (!id) return ''
+  return slideshowUseConvert.value ? api.convertUrl(id) : api.streamUrl(id)
+})
+const slideshowNextId = computed(() => {
   if (!slideshowActive.value) return null
   const images = slideshowImages.value
   if (images.length < 2) return null
-  const idx = images.findIndex(m => m.id === mediaId.value)
-  const nextIdx = idx === -1 ? 0 : (idx + 1) % images.length
-  const next = images[nextIdx]
-  return next ? api.streamUrl(next.id) : null
+  return images[(slideshowIdx.value + 1) % images.length]?.id ?? null
 })
+const slideshowNextSrc = computed(() => slideshowNextId.value ? api.streamUrl(slideshowNextId.value) : null)
+const slideshowNextConvertSrc = computed(() => slideshowNextId.value ? api.convertUrl(slideshowNextId.value) : null)
 
 const fromMap = computed(() => route.query.from === 'map')
 const backLabel = computed(() => fromMap.value ? 'Back to map' : 'Back to album')
@@ -300,6 +312,17 @@ function onImgLoad() {
 }
 
 function onImgError(e) {
+  if (slideshowActive.value) {
+    const id = slideshowImgId.value
+    if (!id) return
+    if (slideshowUseConvert.value) {
+      const expected = new URL(api.convertUrl(id), window.location.href).href
+      if (e.target.src === expected) slideshowConvertFailed.value = true
+    } else {
+      slideshowUseConvert.value = true
+    }
+    return
+  }
   if (imgUseConvert.value) {
     const expectedSrc = new URL(api.convertUrl(media.value.id), window.location.href).href
     if (e.target.src === expectedSrc) {
@@ -486,10 +509,14 @@ function onSsControlsMouseleave() {
 function startSlideshow() {
   const images = slideshowImages.value
   if (images.length < 2) return
+  const idx = images.findIndex(m => m.id === mediaId.value)
+  slideshowIdx.value = idx === -1 ? 0 : idx
+  slideshowReady.value = false
   slideshowActive.value = true
   slideshowPaused.value = false
-  const idx = images.findIndex(m => m.id === mediaId.value)
-  if (idx === -1) navigate(images[0].id)
+  slideshowUseConvert.value = false
+  slideshowConvertFailed.value = false
+  nextTick(() => { slideshowReady.value = true })
   scheduleSlideshowTick()
   scheduleSsControlsHide()
 }
@@ -522,9 +549,9 @@ function scheduleSlideshowTick() {
 function slideshowAdvance() {
   const images = slideshowImages.value
   if (!images.length) { stopSlideshow(); return }
-  const idx = images.findIndex(m => m.id === mediaId.value)
-  const nextIdx = idx === -1 ? 0 : (idx + 1) % images.length
-  navigate(images[nextIdx].id)
+  slideshowIdx.value = (slideshowIdx.value + 1) % images.length
+  slideshowUseConvert.value = false
+  slideshowConvertFailed.value = false
   scheduleSlideshowTick()
 }
 
