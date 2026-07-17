@@ -133,6 +133,23 @@
 
 ---
 
+---
+
+## Epic I: AI Recognition (Planned, Post-V1)
+
+See full plan: `docs/epic-ai-recognition.md`
+
+### I-1 `visiorama-ai` binary foundation ❌ (P0)
+### I-2 Object & animal detection pipeline ❌ (P0)
+### I-3 Face detection & embedding pipeline ❌ (P0)
+### I-4 Analysis queue & scheduler ❌ (P0)
+### I-5 Cluster & enrollment UI ❌ (P0)
+### I-6 Persons Gallery view ❌ (P0)
+### I-7 Lightbox detail integration ❌ (P1)
+### I-8 Re-analysis & maintenance ❌ (P2)
+
+---
+
 ## ADR Traceability
 - ADR-001 → Epic H-1
 - ADR-002 → Epic E-5
@@ -140,3 +157,4 @@
 - ADR-004 → Epic B-1 (superseded by ADR-006)
 - ADR-005 → Epic G-1
 - ADR-006 → Epic H-2
+- ADR-007 → Epic I
