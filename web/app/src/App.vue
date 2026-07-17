@@ -45,11 +45,7 @@ const breadcrumbs = computed(() => {
 })
 
 function onCurrentCrumbClick(crumb) {
-  const isLightbox = route.name === 'media'
-  if (isLightbox) {
-    router.push({ name: 'album', params: { id: crumb.albumId } })
-  }
-  store.fetchAlbum(crumb.albumId, 1)
+  router.push({ name: 'album', params: { id: crumb.albumId } })
 }
 
 function onScanDone() {
