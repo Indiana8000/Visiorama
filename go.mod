@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/disintegration/imaging v1.6.2
 	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
-	github.com/yalue/onnxruntime_go v1.31.0
+	github.com/yalue/onnxruntime_go v1.25.0
 	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8
 	golang.org/x/sys v0.42.0
 	gopkg.in/yaml.v3 v3.0.1

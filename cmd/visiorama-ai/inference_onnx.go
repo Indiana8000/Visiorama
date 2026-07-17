@@ -209,7 +209,7 @@ func letterboxPreprocess(img image.Image, dst []float32) (scale, padX, padY floa
 	padX = float32(yoloW-newW) / 2
 	padY = float32(yoloH-newH) / 2
 
-	resized := imaging.Resize(img, newW, newH, imaging.Bilinear)
+	resized := imaging.Resize(img, newW, newH, imaging.Linear)
 	nrgba := imaging.New(yoloW, yoloH, color.NRGBA{128, 128, 128, 255})
 	nrgba = imaging.Paste(nrgba, resized, image.Pt(int(padX+0.5), int(padY+0.5)))
 

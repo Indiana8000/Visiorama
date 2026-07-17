@@ -38,7 +38,7 @@ jobs:
       - name: Download ONNX Runtime shared libraries
         run: |
           mkdir -p ort-libs
-          ORT_VER="1.21.0"
+          ORT_VER="1.23.0"
 
           # amd64
           wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/onnxruntime-linux-x64-${ORT_VER}.tgz" \
@@ -55,7 +55,7 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p dist
-          ORT_VER="1.21.0"
+          ORT_VER="1.23.0"
 
           for TARGET in "linux/amd64" "linux/arm64" "linux/arm"; do
             OS=$(echo $TARGET | cut -d/ -f1)

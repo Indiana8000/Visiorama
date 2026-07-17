@@ -44,7 +44,16 @@
       "Read(//c/Temp/**)",
       "Bash(taskkill /F /IM visiorama-ai.exe)",
       "Bash(pkill -f \"go run.*visiorama-ai\")",
-      "Bash(pkill -f \"visiorama-ai\")"
+      "Bash(pkill -f \"visiorama-ai\")",
+      "Bash(grep -n \"func NewAdvancedSession\\\\b\\\\|func NewTensor\\\\b\\\\|type AdvancedSession\\\\b\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.20.0/legacy_code.go\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.20.0/onnxruntime_go.go\")",
+      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.20.0/onnxruntime_wrapper.h\")",
+      "Bash(grep \"ORT_API_VERSION\\\\|API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.20.0/\"*.h)",
+      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.20.0/\"*.c)",
+      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.21.0/onnxruntime_c_api.h\")",
+      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.22.0/onnxruntime_c_api.h\")",
+      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.23.0/onnxruntime_c_api.h\")",
+      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.24.0/onnxruntime_c_api.h\")",
+      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.25.0/onnxruntime_c_api.h\")"
     ]
   }
 }
