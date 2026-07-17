@@ -44,7 +44,12 @@ This document defines product requirements and implementation boundaries. Initia
 - User authentication/authorization.
 - Public internet exposure hardening (can be revisited later).
 - Real-time filesystem watching.
-- GPS map rendering.
+
+### Implemented Beyond Original V1 Scope
+- GPS map rendering with cluster view (MapLibre GL).
+- On-demand video transcode to H.264/AAC MP4 (ADR-006).
+- Image format conversion: HEIC/TIFF → JPEG on-demand.
+- Background thumbnail pre-warmer.
 
 ## 3. Operating Model
 
@@ -124,10 +129,11 @@ Acceptance criteria:
 - Full-view lightbox must support:
   - Previous/next navigation within the current album view set.
   - Image display and video playback.
+  - Slideshow mode with auto-advance, pause/resume, and fullscreen.
 
 Acceptance criteria:
 - Keyboard and touch navigation supported on desktop/mobile.
-- Slideshow/auto-play is optional in V1 and enabled only if supported by the chosen lightbox solution with low complexity impact.
+- Slideshow operational. ✅ Implemented.
 
 ### FR-8 Metadata
 - Metadata panel must expose required fields when available.
@@ -136,7 +142,7 @@ Acceptance criteria:
 Acceptance criteria:
 - EXIF orientation is respected for display.
 - Video duration is shown when extractable.
-- GPS is shown as raw coordinates in V1.
+- GPS coordinates displayed and rendered on interactive map (MapLibre GL). ✅ Implemented.
 
 ### FR-9 Re-Scan Triggers
 - System must provide:
@@ -317,7 +323,7 @@ Acceptance criteria:
 - Risk: Metadata extraction cost at 100k scale.
   - Mitigation: staged extraction and cached index persistence.
 - Risk: Video processing overhead.
-  - Mitigation: lightweight poster strategy first, no heavy previews in V1.
+  - Mitigation: poster-frame strategy by default; full transcode is opt-in per video item (ADR-006).
 
 ## 12. Milestone Backlog (Implementation-Oriented)
 
@@ -407,10 +413,10 @@ Definition of done:
 - ADR-001: Go Service Baseline
 - ADR-002: SQLite Index Store
 - ADR-003: Quick-Scan Using mtime Delta Strategy
-- ADR-004: V1 Video Preview Strategy is Poster-Frame Only
-- ADR-005: Alpine Native Packaging Roadmap
+- ADR-004: V1 Video Preview Strategy is Poster-Frame Only (superseded by ADR-006)
+- ADR-005: Distribution Install Script
+- ADR-006: On-Demand Video Transcode Pipeline
 
-## 17. Technical Specs (Draft)
+## 17. Technical Specs
 - Implementation blueprint: docs/architecture/implementation-blueprint-v1.md
-- OpenAPI draft: docs/api/openapi.v1.yaml
-- SQLite schema draft: docs/db/sqlite-schema-v1.sql
+- OpenAPI spec: docs/api/openapi.v1.yaml

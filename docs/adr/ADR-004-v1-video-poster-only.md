@@ -1,6 +1,6 @@
 # ADR-004: V1 Video Preview Strategy is Poster-Frame Only
 
-- Status: Accepted
+- Status: Superseded by ADR-006
 - Date: 2026-06-03
 
 ## Context
@@ -22,6 +22,7 @@ Use static poster-frame generation for video previews in V1. Do not implement an
 - Animated GIF/WebP preview strips: higher generation cost and larger storage use.
 - On-hover transcoding: high runtime overhead and inconsistent UX.
 
-## Follow-ups
-- Define poster extraction rules and fallback behavior.
-- Validate poster quality and generation latency for common video formats.
+## Superseded By
+ADR-006 introduced an opt-in video transcode pipeline (libx264/AAC to MP4) that enables
+browser-native playback for formats not supported by the browser. Poster-frame extraction
+remains the default thumbnail strategy; transcode is user-triggered per video item.

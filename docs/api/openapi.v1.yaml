@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
   title: Visiorama Gallery API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
-    Draft API for read-only gallery browsing, metadata retrieval, media streaming,
-    thumbnail access, and manual scan orchestration.
+    Read-only gallery API for album navigation, media metadata, streaming,
+    thumbnails, scan orchestration, video transcode, image conversion, and map clustering.
 servers:
   - url: http://localhost:8080
 
@@ -12,9 +12,15 @@ tags:
   - name: Albums
   - name: Media
   - name: Scans
+  - name: Transcode
+  - name: Map
+  - name: Admin
   - name: Health
 
 paths:
+
+  # ─── Albums ───────────────────────────────────────────────────────────────
+
   /api/albums/root:
     get:
       tags: [Albums]
@@ -29,36 +35,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AlbumResponse'
-              example:
-                album:
-                  id: 1
-                  relativePath: ""
-                  name: "/"
-                  parentAlbumId: null
-                  mediaCountDirect: 0
-                  mediaCountRecursive: 1500
-                  childAlbumCount: 4
-                breadcrumbs:
-                  - name: "/"
-                    relativePath: ""
-                childAlbums:
-                  - id: 2
-                    relativePath: "Vacations"
-                    name: "Vacations"
-                    parentAlbumId: 1
-                    mediaCountDirect: 45
-                    mediaCountRecursive: 312
-                    childAlbumCount: 6
-                    coverMediaId: 88
-                    coverThumbnailUrl: "/api/media/88/thumbnail"
-                media: []
-                page:
-                  page: 1
-                  pageSize: 100
-                  totalItems: 4
-                  totalPages: 1
-                  hasNext: false
-                  hasPrev: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/albums/by-path:
+    get:
+      tags: [Albums]
+      summary: Resolve album by relative path
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Relative path under configured root (e.g. "Vacations/Italy2023")
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Album payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/albums/by-media-ids:
+    post:
+      tags: [Albums]
+      summary: Resolve albums for a set of media IDs
+      description: Returns a map of mediaId → album for the given IDs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+              required: [ids]
+      responses:
+        '200':
+          description: Map of mediaId → AlbumTile
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/AlbumTile'
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -77,73 +108,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AlbumResponse'
-              example:
-                album:
-                  id: 7
-                  relativePath: "Vacations/Italy2023"
-                  name: "Italy2023"
-                  parentAlbumId: 2
-                  mediaCountDirect: 58
-                  mediaCountRecursive: 58
-                  childAlbumCount: 0
-                breadcrumbs:
-                  - name: "/"
-                    relativePath: ""
-                  - albumId: 2
-                    name: "Vacations"
-                    relativePath: "Vacations"
-                  - albumId: 7
-                    name: "Italy2023"
-                    relativePath: "Vacations/Italy2023"
-                childAlbums: []
-                media:
-                  - id: 201
-                    albumId: 7
-                    filename: "IMG_0042.jpg"
-                    type: image
-                    width: 4032
-                    height: 3024
-                    durationMs: null
-                    sizeBytes: 4718592
-                    captureDate: "2023-08-15T14:22:10Z"
-                    thumbnailUrl: "/api/media/201/thumbnail"
-                page:
-                  page: 1
-                  pageSize: 100
-                  totalItems: 58
-                  totalPages: 1
-                  hasNext: false
-                  hasPrev: false
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/albums/by-path:
+  /api/albums/{albumId}/gps-count:
     get:
       tags: [Albums]
-      summary: Resolve album by relative path
+      summary: Count media items with GPS coordinates in an album subtree
       parameters:
-        - name: path
-          in: query
-          required: true
-          schema:
-            type: string
-          description: Relative path under configured root (e.g. "Vacations/Italy2023")
-          example: "Vacations/Italy2023"
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/AlbumId'
       responses:
         '200':
-          description: Album payload
+          description: GPS media count
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AlbumResponse'
+                type: object
+                properties:
+                  count:
+                    type: integer
         '400':
           $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
+
+  # ─── Media ────────────────────────────────────────────────────────────────
 
   /api/media/{mediaId}/metadata:
     get:
@@ -158,32 +147,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MediaMetadata'
-              example:
-                id: 201
-                albumId: 7
-                filename: "IMG_0042.jpg"
-                type: image
-                width: 4032
-                height: 3024
-                durationMs: null
-                sizeBytes: 4718592
-                captureDate: "2023-08-15T14:22:10Z"
-                thumbnailUrl: "/api/media/201/thumbnail"
-                extension: "jpg"
-                mimeType: "image/jpeg"
-                cameraModel: "Apple iPhone 14 Pro"
-                lensModel: null
-                gpsLat: 41.9028
-                gpsLon: 12.4964
-                orientation: 1
-                warningLargeMedia: false
         '404':
           $ref: '#/components/responses/NotFound'
 
   /api/media/{mediaId}/thumbnail:
     get:
       tags: [Media]
-      summary: Get media thumbnail or poster frame
+      summary: Get media thumbnail or video poster frame
       parameters:
         - $ref: '#/components/parameters/MediaId'
         - name: size
@@ -191,10 +161,10 @@ paths:
           required: false
           schema:
             type: integer
-            enum: [240, 480]
+          description: Thumbnail width in pixels (uses nearest configured size)
       responses:
         '200':
-          description: Thumbnail binary
+          description: Thumbnail JPEG
           content:
             image/jpeg:
               schema:
@@ -208,67 +178,99 @@ paths:
       tags: [Media]
       summary: Stream original media file
       description: >-
-        Serves the original file. Supports HTTP Range requests (RFC 7233) for
-        video seeking. Returns 206 Partial Content for valid Range headers,
-        200 OK when no Range header is present.
+        Serves the original file. Supports HTTP Range requests (RFC 7233).
+        Returns 206 for valid Range headers, 200 when no Range header is present.
       parameters:
         - $ref: '#/components/parameters/MediaId'
       responses:
         '200':
-          description: Full media stream (no Range header supplied)
-          headers:
-            Accept-Ranges:
-              schema:
-                type: string
-                example: bytes
-            Content-Length:
-              schema:
-                type: integer
-            Content-Type:
-              schema:
-                type: string
-                example: video/mp4
+          description: Full media stream
           content:
             application/octet-stream:
               schema:
                 type: string
                 format: binary
         '206':
-          description: Partial content (Range request satisfied)
-          headers:
-            Content-Range:
-              schema:
-                type: string
-                example: 'bytes 0-1023/8192000'
-            Accept-Ranges:
-              schema:
-                type: string
-                example: bytes
-            Content-Length:
-              schema:
-                type: integer
-            Content-Type:
-              schema:
-                type: string
-                example: video/mp4
+          description: Partial content (Range request)
+        '416':
+          description: Range Not Satisfiable
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/media/{mediaId}/convert:
+    get:
+      tags: [Media]
+      summary: On-demand image format conversion (HEIC/TIFF → JPEG)
+      description: >-
+        Converts the source image to JPEG on first request; subsequent requests
+        return the cached result. Useful for formats not natively supported by browsers.
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      responses:
+        '200':
+          description: Converted JPEG image
           content:
-            application/octet-stream:
+            image/jpeg:
               schema:
                 type: string
                 format: binary
-        '416':
-          description: Range Not Satisfiable
-          headers:
-            Content-Range:
-              schema:
-                type: string
-                example: 'bytes */8192000'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/media/{mediaId}/transcode:
+    post:
+      tags: [Transcode]
+      summary: Enqueue a video transcode job
+      description: >-
+        Starts an H.264/AAC MP4 re-encode via ffmpeg. Returns 202 if a new job
+        was created, 200 if an active job already exists for this media item.
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      responses:
+        '202':
+          description: Transcode job created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                type: object
+                properties:
+                  jobId:
+                    type: string
+        '200':
+          description: Active job already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          description: Enqueue failed
+
+  /api/media/{mediaId}/transcode/stream:
+    get:
+      tags: [Transcode]
+      summary: Stream the transcoded MP4 output
+      description: Only available when a successful transcode job exists for this media item.
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      responses:
+        '200':
+          description: Transcoded MP4 stream
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Partial content (Range request)
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Scans ────────────────────────────────────────────────────────────────
 
   /api/scans:
     post:
@@ -280,33 +282,46 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ScanRequest'
-            example:
-              mode: quick
       responses:
         '202':
-          description: Scan accepted
+          description: Scan job queued
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScanJob'
-              example:
-                id: "scan-20240815-001"
-                mode: quick
-                status: queued
-                startedAt: null
-                finishedAt: null
-                scannedFiles: 0
-                indexedFiles: 0
-                skippedFiles: 0
-                errorCount: 0
-                fallbackToFull: false
         '409':
           $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Scans]
+      summary: List recent scan jobs (last 100)
+      responses:
+        '200':
+          description: Scan job list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScanJob'
+
+  /api/scans/active:
+    get:
+      tags: [Scans]
+      summary: Get currently active (running or queued) scan job
+      responses:
+        '200':
+          description: Active scan job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanJob'
+        '404':
+          description: No active scan job
 
   /api/scans/{scanId}:
     get:
       tags: [Scans]
-      summary: Get scan job status
+      summary: Get scan job by ID
       parameters:
         - $ref: '#/components/parameters/ScanId'
       responses:
@@ -316,24 +331,126 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScanJob'
-              example:
-                id: "scan-20240815-001"
-                mode: quick
-                status: success
-                startedAt: "2024-08-15T10:00:00Z"
-                finishedAt: "2024-08-15T10:00:12Z"
-                scannedFiles: 1500
-                indexedFiles: 12
-                skippedFiles: 1488
-                errorCount: 0
-                fallbackToFull: false
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # ─── Transcode Jobs ───────────────────────────────────────────────────────
+
+  /api/transcode-jobs/{jobId}:
+    get:
+      tags: [Transcode]
+      summary: Get transcode job status
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transcode job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscodeJob'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Map ──────────────────────────────────────────────────────────────────
+
+  /api/map/clusters:
+    get:
+      tags: [Map]
+      summary: Get GPS clusters for map rendering
+      parameters:
+        - name: zoom
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 22
+            default: 5
+        - name: bbox
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Bounding box: west,south,east,north (e.g. -10.5,47.0,15.0,55.0)"
+        - name: album_id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: Filter to media within this album subtree
+      responses:
+        '200':
+          description: GeoJSON FeatureCollection of GPS clusters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeoJSONFeatureCollection'
+
+  /api/map/style:
+    get:
+      tags: [Map]
+      summary: Proxied MapLibre GL style JSON (openfreemap.org)
+      description: Rewrites all tile/glyph/sprite URLs to /api/map/proxy/... so browsers never call openfreemap.org directly. Cached 10 minutes.
+      responses:
+        '200':
+          description: MapLibre style JSON
+          content:
+            application/json:
+              schema:
+                type: object
+        '502':
+          description: Upstream unavailable
+
+  /api/map/proxy/{path}:
+    get:
+      tags: [Map]
+      summary: Proxy tile, glyph, and sprite requests to openfreemap.org
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Proxied response
+        '502':
+          description: Upstream unavailable
+
+  # ─── Admin ────────────────────────────────────────────────────────────────
+
+  /api/reset_thumbs:
+    get:
+      tags: [Admin]
+      summary: Delete thumbnail cache and reset thumb_ready flags
+      description: Deletes all files in thumbnails.cacheDir and resets thumb_ready=0 for all media items. Background warmer will regenerate thumbnails.
+      responses:
+        '200':
+          description: Reset completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  mediaReset:
+                    type: integer
+        '500':
+          description: Reset failed (server misconfiguration or filesystem error)
+
+  # ─── Health ───────────────────────────────────────────────────────────────
 
   /api/health:
     get:
       tags: [Health]
-      summary: Service health with root availability
+      summary: Service health with component availability
       responses:
         '200':
           description: Health status
@@ -341,11 +458,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: ok
-                mediaRootAvailable: true
-                databaseAvailable: true
-                uptimeSeconds: 3600
 
 components:
   parameters:
@@ -394,29 +506,21 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-          example:
-            code: NOT_FOUND
-            message: Resource does not exist
     BadRequest:
-      description: Invalid query parameter or request body
+      description: Invalid parameter or request body
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-          example:
-            code: INVALID_PARAM
-            message: "pageSize must be between 1 and 500"
     Conflict:
-      description: Conflict — a scan job is already running
+      description: Conflict (e.g. scan already running)
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-          example:
-            code: SCAN_ALREADY_RUNNING
-            message: A scan job is already in progress
 
   schemas:
+
     AlbumResponse:
       type: object
       properties:
@@ -458,13 +562,7 @@ components:
           type: integer
         childAlbumCount:
           type: integer
-      required:
-        - id
-        - relativePath
-        - name
-        - mediaCountDirect
-        - mediaCountRecursive
-        - childAlbumCount
+      required: [id, relativePath, name, mediaCountDirect, mediaCountRecursive, childAlbumCount]
 
     AlbumTile:
       allOf:
@@ -524,13 +622,7 @@ components:
           nullable: true
         thumbnailUrl:
           type: string
-      required:
-        - id
-        - albumId
-        - filename
-        - type
-        - sizeBytes
-        - thumbnailUrl
+      required: [id, albumId, filename, type, sizeBytes, thumbnailUrl]
 
     MediaMetadata:
       allOf:
@@ -567,9 +659,11 @@ components:
       properties:
         mode:
           type: string
-          enum: [full, quick]
+          enum: [full, quick, orphan]
           default: quick
-      required: []
+        albumPath:
+          type: string
+          description: Optional relative path to restrict scan to a subtree
 
     ScanJob:
       type: object
@@ -578,7 +672,7 @@ components:
           type: string
         mode:
           type: string
-          enum: [full, quick]
+          enum: [full, quick, orphan]
         status:
           type: string
           enum: [queued, running, success, failed]
@@ -600,15 +694,75 @@ components:
           type: integer
         fallbackToFull:
           type: boolean
-      required:
-        - id
-        - mode
-        - status
-        - scannedFiles
-        - indexedFiles
-        - skippedFiles
-        - errorCount
-        - fallbackToFull
+      required: [id, mode, status, scannedFiles, indexedFiles, skippedFiles, errorCount, fallbackToFull]
+
+    TranscodeJob:
+      type: object
+      properties:
+        jobId:
+          type: string
+        mediaId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [queued, running, success, failed]
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+      required: [jobId, mediaId, status, createdAt]
+
+    GeoJSONFeatureCollection:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeoJSONFeature'
+      required: [type, features]
+
+    GeoJSONFeature:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        geometry:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [Point]
+            coordinates:
+              type: array
+              items:
+                type: number
+              minItems: 2
+              maxItems: 2
+              description: "[longitude, latitude]"
+        properties:
+          type: object
+          properties:
+            count:
+              type: integer
+            ids:
+              type: array
+              items:
+                type: integer
+                format: int64
+            thumbnailId:
+              type: integer
+              format: int64
 
     HealthResponse:
       type: object
@@ -630,41 +784,30 @@ components:
         page:
           type: integer
           minimum: 1
-          example: 2
         pageSize:
           type: integer
           minimum: 1
           maximum: 500
-          example: 100
         totalItems:
           type: integer
           minimum: 0
-          example: 347
         totalPages:
           type: integer
           minimum: 0
-          example: 4
         hasNext:
           type: boolean
-          example: true
         hasPrev:
           type: boolean
-          example: true
       required: [page, pageSize, totalItems, totalPages, hasNext, hasPrev]
 
     ErrorResponse:
       type: object
       description: >-
-        Uniform error envelope returned for all 4xx/5xx responses.
-        Known code values: NOT_FOUND, INVALID_PARAM, SCAN_ALREADY_RUNNING,
-        RANGE_NOT_SATISFIABLE, INTERNAL_ERROR.
+        Uniform error envelope. Known codes: NOT_FOUND, INVALID_PARAM,
+        SCAN_ALREADY_RUNNING, RANGE_NOT_SATISFIABLE, INTERNAL_ERROR.
       properties:
         code:
           type: string
-          description: Machine-readable error code (SCREAMING_SNAKE_CASE)
-          example: NOT_FOUND
         message:
           type: string
-          description: Human-readable explanation
-          example: Album 42 does not exist
       required: [code, message]
