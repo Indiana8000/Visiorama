@@ -89,6 +89,18 @@ var aiTables = []string{
 		crop_path    TEXT    NOT NULL
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_ai_faces_media ON ai_faces(media_id)`,
+	`CREATE TABLE IF NOT EXISTS ai_persons (
+		id             INTEGER PRIMARY KEY AUTOINCREMENT,
+		name           TEXT    NOT NULL,
+		cover_face_id  INTEGER REFERENCES ai_faces(id),
+		created_at     TEXT    NOT NULL
+	)`,
+	`CREATE TABLE IF NOT EXISTS ai_face_assignments (
+		face_id    INTEGER NOT NULL PRIMARY KEY REFERENCES ai_faces(id),
+		person_id  INTEGER NOT NULL REFERENCES ai_persons(id),
+		confirmed  INTEGER NOT NULL DEFAULT 0
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_ai_assignments_person ON ai_face_assignments(person_id)`,
 }
 
 // simpleAlterations are run after schema creation; "duplicate column" errors are ignored.

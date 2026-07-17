@@ -116,6 +116,61 @@ export const api = {
     return request(`/api/albums/${albumId}/gps-count`)
   },
 
+  // --- AI persons / clusters ---
+
+  /** GET /api/ai/clusters */
+  getAIClusters() {
+    return request('/api/ai/clusters')
+  },
+
+  /** POST /api/ai/persons — body: {clusterId, name} */
+  createPerson(clusterId, name) {
+    return request('/api/ai/persons', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clusterId, name }),
+    })
+  },
+
+  /** PUT /api/ai/persons/:id — body: {name} */
+  renamePerson(personId, name) {
+    return request(`/api/ai/persons/${personId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+  },
+
+  /** DELETE /api/ai/persons/:id */
+  deletePerson(personId) {
+    return request(`/api/ai/persons/${personId}`, { method: 'DELETE' })
+  },
+
+  /** POST /api/ai/persons/:id/merge/:otherId */
+  mergePersons(personId, otherId) {
+    return request(`/api/ai/persons/${personId}/merge/${otherId}`, { method: 'POST' })
+  },
+
+  /** DELETE /api/ai/clusters/:clusterId/faces/:faceId */
+  removeFaceFromCluster(clusterId, faceId) {
+    return request(`/api/ai/clusters/${clusterId}/faces/${faceId}`, { method: 'DELETE' })
+  },
+
+  /** GET /api/ai/persons */
+  getPersons() {
+    return request('/api/ai/persons')
+  },
+
+  /** GET /api/ai/persons/:id/media */
+  getPersonMedia(personId, page = 1, pageSize = 50) {
+    return request(`/api/ai/persons/${personId}/media${pageParams(page, pageSize)}`)
+  },
+
+  /** GET /api/ai/counts */
+  getAICounts() {
+    return request('/api/ai/counts')
+  },
+
   /** POST /api/albums/by-media-ids */
   getAlbumsByMediaIDs(ids) {
     return request('/api/albums/by-media-ids', {

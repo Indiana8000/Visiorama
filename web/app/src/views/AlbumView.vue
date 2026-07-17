@@ -12,7 +12,12 @@
             &middot; {{ store.currentAlbum.childAlbums.length.toLocaleString() }} album{{ store.currentAlbum.childAlbums.length !== 1 ? 's' : '' }}
           </template>
         </span>
-        <button v-if="gpsCount > 0" class="btn-map" @click="openMap">🗺 Map ({{ gpsCount }})</button>
+        <div class="meta-buttons">
+          <button v-if="gpsCount > 0" class="btn-map" @click="openMap">🗺 Map ({{ gpsCount }})</button>
+          <button class="btn-persons" @click="$router.push('/persons')">
+            👥 Persons<span v-if="pendingClusters > 0" class="persons-badge">{{ pendingClusters }}</span>
+          </button>
+        </div>
       </div>
 
       <!-- Child albums -->
@@ -91,6 +96,14 @@ const store = useGalleryStore()
 const albumId = computed(() => props.id ? parseInt(props.id, 10) : null)
 const pageInfo = computed(() => store.currentAlbum?.page ?? { page: 1, totalPages: 1, hasPrev: false, hasNext: false })
 const gpsCount = ref(0)
+const pendingClusters = ref(0)
+
+async function loadAICounts() {
+  try {
+    const res = await api.getAICounts()
+    pendingClusters.value = res.pendingClusters ?? 0
+  } catch { /* sidecar may not be running */ }
+}
 
 async function loadGPSCount(id) {
   if (id == null) { gpsCount.value = 0; return }
@@ -118,7 +131,7 @@ function changePage(page) {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-onMounted(() => load())
+onMounted(() => { load(); loadAICounts() })
 watch(() => route.params.id, () => load())
 watch(() => store.currentAlbum, (album) => {
   loadGPSCount(album?.album?.id ?? null)
@@ -209,6 +222,8 @@ watch(() => store.currentAlbum, (album) => {
   text-align: center;
 }
 
+.meta-buttons { display: flex; gap: 8px; align-items: center; }
+
 .btn-map {
   background: #313244;
   border: none;
@@ -220,4 +235,28 @@ watch(() => store.currentAlbum, (album) => {
   flex-shrink: 0;
 }
 .btn-map:hover { background: #45475a; }
+
+.btn-persons {
+  background: #313244;
+  border: none;
+  color: #cdd6f4;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-persons:hover { background: #45475a; }
+.persons-badge {
+  background: var(--accent, #cba6f7);
+  color: #1e1e2e;
+  border-radius: 9px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+}
 </style>

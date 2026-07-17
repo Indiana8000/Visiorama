@@ -55,6 +55,18 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	aih := &aiHandler{cfg: cfg, client: aiClient, queue: aiQueue}
 	mux.HandleFunc("GET /api/ai/status", aih.status)
 
+	ph := &personsHandler{cfg: cfg, store: store}
+	mux.HandleFunc("GET /api/ai/clusters", ph.getClusters)
+	mux.HandleFunc("DELETE /api/ai/clusters/{clusterId}/faces/{faceId}", ph.removeFaceFromCluster)
+	mux.HandleFunc("GET /api/ai/persons", ph.listPersons)
+	mux.HandleFunc("POST /api/ai/persons", ph.createPerson)
+	mux.HandleFunc("PUT /api/ai/persons/{personId}", ph.renamePerson)
+	mux.HandleFunc("DELETE /api/ai/persons/{personId}", ph.deletePerson)
+	mux.HandleFunc("POST /api/ai/persons/{personId}/merge/{otherId}", ph.mergePersons)
+	mux.HandleFunc("GET /api/ai/persons/{personId}/media", ph.getPersonMedia)
+	mux.HandleFunc("GET /api/ai/counts", ph.statusCounts)
+	mux.HandleFunc("GET /api/ai/crops/{filename}", ph.serveCrop)
+
 	mh2 := &mapHandler{store: store}
 	mux.HandleFunc("GET /api/map/clusters", mh2.getClusters)
 	mux.HandleFunc("GET /api/map/style", mh2.getStyle)

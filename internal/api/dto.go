@@ -105,6 +105,34 @@ type ThumbWarmerStatus struct {
 	PendingItems int64 `json:"pendingItems"`
 }
 
+// --- AI persons / clusters ---
+
+type ClusterFaceDTO struct {
+	FaceID   int64  `json:"faceId"`
+	MediaID  int64  `json:"mediaId"`
+	CropPath string `json:"cropPath"`
+	BBoxJSON string `json:"bbox"`
+}
+
+type ClusterDTO struct {
+	ClusterID int              `json:"clusterId"`
+	Faces     []ClusterFaceDTO `json:"faces"`
+}
+
+type PersonDTO struct {
+	ID         int64   `json:"id"`
+	Name       string  `json:"name"`
+	CoverCrop  *string `json:"coverCrop"`
+	FaceCount  int     `json:"faceCount"`
+	MediaCount int     `json:"mediaCount"`
+}
+
+type PersonMediaDTO struct {
+	PersonID int64          `json:"personId"`
+	Media    []MediaSummary `json:"media"`
+	Page     PageInfo       `json:"page"`
+}
+
 type AIStatusResponse struct {
 	Available    bool     `json:"available"`
 	Reason       string   `json:"reason,omitempty"`

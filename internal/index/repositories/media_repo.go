@@ -44,6 +44,34 @@ func (r *MediaRepo) GetByID(id int64) (*Media, error) {
 	return scanMedia(row)
 }
 
+// GetByIDs fetches media rows for the given IDs (order not guaranteed).
+func (r *MediaRepo) GetByIDs(ids []int64) ([]Media, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	// Build placeholders: ?,?,?...
+	ph := make([]byte, 0, len(ids)*2)
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		if i > 0 {
+			ph = append(ph, ',')
+		}
+		ph = append(ph, '?')
+		args[i] = id
+	}
+	rows, err := r.db.Query(`
+		SELECT id, album_id, filename, relative_path, type,
+		       width, height, duration_ms, size_bytes, capture_date,
+		       extension, mime_type, camera_model, lens_model,
+		       gps_lat, gps_lon, orientation, mtime_unix
+		FROM media WHERE id IN (`+string(ph)+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectMedia(rows)
+}
+
 func (r *MediaRepo) ListByAlbum(albumID int64, offset, limit int) ([]Media, error) {
 	rows, err := r.db.Query(`
 		SELECT id, album_id, filename, relative_path, type,
