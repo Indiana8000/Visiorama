@@ -30,7 +30,21 @@
       "Bash(bash /tmp/error_check.sh)",
       "Bash(bash /tmp/queue_check.sh)",
       "Bash(bash /tmp/resource_check.sh)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f['rfilename']\\) for f in d.get\\('siblings',[]\\)]\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f['rfilename']\\) for f in d.get\\('siblings',[]\\)]\")",
+      "Bash(grep -n \"func New\\\\|func Create\\\\|type.*Session\\\\|AdvancedSession\\\\|NewAdvanced\\\\|RunWithNames\\\\|Run\\(\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.31.0/onnxruntime_go.go\")",
+      "Bash(grep -n \"func New\\\\|func Create\\\\|type.*Session\\\\|AdvancedSession\\\\|NewAdvanced\\\\|type Tensor\\\\|NewTensor\\\\|func.*Run\\\\b\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.31.0/legacy_code.go\")",
+      "Bash(grep -n \"func New\\\\b\\\\|NRGBAAt\\\\|type NRGBA \" \"$\\(go env GOPATH\\)/pkg/mod/github.com/disintegration/imaging@v1.6.2/utils.go\")",
+      "Bash(grep -rn \"func New\\\\b\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/disintegration/imaging@v1.6.2/\")",
+      "Bash(grep -n \"type Value\\\\|func.*Tensor.*Value\\\\|interface.*Value\\\\|Value interface\\\\|implements Value\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.31.0/legacy_code.go\")",
+      "Bash(grep -n \"type Value\\\\|interface.*Value\\\\|Value interface\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.31.0/onnxruntime_go.go\")",
+      "Bash(grep -A 5 \"^func NewAdvancedSession\\\\b\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.31.0/legacy_code.go\")",
+      "Bash(grep -A 5 \"^func NewAdvancedSession\\\\b\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.31.0/onnxruntime_go.go\")",
+      "Bash(go mod *)",
+      "Bash(go run *)",
+      "Read(//c/Temp/**)",
+      "Bash(taskkill /F /IM visiorama-ai.exe)",
+      "Bash(pkill -f \"go run.*visiorama-ai\")",
+      "Bash(pkill -f \"visiorama-ai\")"
     ]
   }
 }

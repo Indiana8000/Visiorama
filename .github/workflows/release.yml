@@ -30,18 +30,45 @@ jobs:
           npm ci
           npm run build
 
+      - name: Install cross-compilation toolchains
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf
+
+      - name: Download ONNX Runtime shared libraries
+        run: |
+          mkdir -p ort-libs
+          ORT_VER="1.21.0"
+
+          # amd64
+          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/onnxruntime-linux-x64-${ORT_VER}.tgz" \
+            -O ort-libs/ort-amd64.tgz
+          tar -xzf ort-libs/ort-amd64.tgz -C ort-libs/
+          mv ort-libs/onnxruntime-linux-x64-${ORT_VER} ort-libs/linux-amd64
+
+          # arm64
+          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/onnxruntime-linux-aarch64-${ORT_VER}.tgz" \
+            -O ort-libs/ort-arm64.tgz
+          tar -xzf ort-libs/ort-arm64.tgz -C ort-libs/
+          mv ort-libs/onnxruntime-linux-aarch64-${ORT_VER} ort-libs/linux-arm64
+
       - name: Build binaries
         run: |
           mkdir -p dist
+          ORT_VER="1.21.0"
+
           for TARGET in "linux/amd64" "linux/arm64" "linux/arm"; do
             OS=$(echo $TARGET | cut -d/ -f1)
             ARCH=$(echo $TARGET | cut -d/ -f2)
             LABEL="${OS}-${ARCH}"
             GOARM=""
-            # armv7 label for arm
+            CC_CROSS=""
             if [ "$ARCH" = "arm" ]; then
               LABEL="linux-armv7"
               GOARM=7
+              CC_CROSS="arm-linux-gnueabihf-gcc"
+            elif [ "$ARCH" = "arm64" ]; then
+              CC_CROSS="aarch64-linux-gnu-gcc"
             fi
 
             # Main binary (CGO_ENABLED=0, statically linked)
@@ -51,11 +78,28 @@ jobs:
               -o "$OUT" ./cmd/visiorama
             sha256sum "$OUT" > "${OUT}.sha256"
 
-            # visiorama-ai binary (CGO_ENABLED=0 for now; ONNX runtime added in Epic I-2)
+            # visiorama-ai binary (CGO required for onnxruntime-go)
             OUT_AI="dist/visiorama-ai-${LABEL}"
-            CGO_ENABLED=0 GOOS=$OS GOARCH=$ARCH GOARM=${GOARM} \
-              go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-              -o "$OUT_AI" ./cmd/visiorama-ai
+            if [ "$ARCH" = "amd64" ]; then
+              ORT_LIB_DIR="$(pwd)/ort-libs/linux-amd64/lib"
+              CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH \
+                CGO_CFLAGS="-I$(pwd)/ort-libs/linux-amd64/include" \
+                CGO_LDFLAGS="-L${ORT_LIB_DIR} -Wl,-rpath,/usr/lib/visiorama" \
+                go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+                -o "$OUT_AI" ./cmd/visiorama-ai
+              cp "${ORT_LIB_DIR}/libonnxruntime.so."* dist/ || true
+            elif [ "$ARCH" = "arm64" ]; then
+              ORT_LIB_DIR="$(pwd)/ort-libs/linux-arm64/lib"
+              CGO_ENABLED=1 GOOS=$OS GOARCH=$ARCH CC="${CC_CROSS}" \
+                CGO_CFLAGS="-I$(pwd)/ort-libs/linux-arm64/include" \
+                CGO_LDFLAGS="-L${ORT_LIB_DIR} -Wl,-rpath,/usr/lib/visiorama" \
+                go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+                -o "$OUT_AI" ./cmd/visiorama-ai
+            else
+              # armv7: skip visiorama-ai (no ORT armv7 upstream release)
+              echo "Skipping visiorama-ai for ${LABEL} (no ORT armv7 release)"
+              continue
+            fi
             sha256sum "$OUT_AI" > "${OUT_AI}.sha256"
           done
 
@@ -73,7 +117,6 @@ jobs:
             dist/visiorama-ai-linux-amd64.sha256
             dist/visiorama-ai-linux-arm64
             dist/visiorama-ai-linux-arm64.sha256
-            dist/visiorama-ai-linux-armv7
-            dist/visiorama-ai-linux-armv7.sha256
+            dist/libonnxruntime.so.*
             install.sh
           generate_release_notes: true
