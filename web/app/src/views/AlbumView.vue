@@ -134,7 +134,10 @@ function changePage(page) {
 }
 
 onMounted(() => { load(); loadAICounts() })
-watch(() => route.params.id, () => load())
+watch(() => route.params.id, () => { load(); loadAICounts() })
+watch(() => route.name, (name) => {
+  if (name === 'album' || name === 'root') loadAICounts()
+})
 watch(() => store.currentAlbum, (album) => {
   loadGPSCount(album?.album?.id ?? null)
 })

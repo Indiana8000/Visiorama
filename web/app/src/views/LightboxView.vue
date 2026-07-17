@@ -163,16 +163,25 @@
         <template v-if="aiFaces.some(f => f.personId)">
           <h3 class="lb-meta-section">Persons</h3>
           <div class="lb-persons">
-            <router-link
+            <div
               v-for="face in aiFaces.filter(f => f.personId)"
               :key="face.faceId"
-              :to="{ name: 'person', params: { personId: face.personId } }"
               class="lb-person-chip"
             >
-              <img v-if="face.cropPath" :src="face.cropPath" class="lb-person-chip__crop" />
-              <span v-else class="lb-person-chip__icon">👤</span>
-              <span class="lb-person-chip__name">{{ face.personName }}</span>
-            </router-link>
+              <router-link
+                :to="{ name: 'person', params: { personId: face.personId } }"
+                class="lb-person-chip__link"
+              >
+                <img v-if="face.cropPath" :src="face.cropPath" class="lb-person-chip__crop" />
+                <span v-else class="lb-person-chip__icon">👤</span>
+                <span class="lb-person-chip__name">{{ face.personName }}</span>
+              </router-link>
+              <button
+                class="lb-person-chip__remove"
+                title="Remove person from this photo"
+                @click.prevent="unassignFace(face)"
+              >✕</button>
+            </div>
           </div>
         </template>
 
@@ -646,6 +655,17 @@ async function loadAI(id) {
   }
 }
 
+async function unassignFace(face) {
+  try {
+    await api.unassignFace(face.faceId)
+    aiFaces.value = aiFaces.value.map(f =>
+      f.faceId === face.faceId ? { ...f, personId: null, personName: null } : f
+    )
+  } catch (e) {
+    console.error('unassign face failed', e)
+  }
+}
+
 // --- Load ---
 async function load(id) {
   if (!Number.isFinite(id) || id <= 0) return
@@ -1017,17 +1037,23 @@ watch(() => route.query.personId, (newId, oldId) => {
 .lb-person-chip {
   display: flex;
   align-items: center;
-  gap: 6px;
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 4px 10px 4px 4px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.lb-person-chip:hover { border-color: var(--accent); }
+.lb-person-chip__link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
   text-decoration: none;
   color: var(--text);
   font-size: 13px;
-  transition: border-color 0.15s;
 }
-.lb-person-chip:hover { border-color: var(--accent); text-decoration: none; }
+.lb-person-chip__link:hover { text-decoration: none; }
 .lb-person-chip__crop {
   width: 28px;
   height: 28px;
@@ -1036,6 +1062,19 @@ watch(() => route.query.personId, (newId, oldId) => {
 }
 .lb-person-chip__icon { font-size: 20px; width: 28px; text-align: center; }
 .lb-person-chip__name { font-weight: 500; }
+.lb-person-chip__remove {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 8px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.lb-person-chip__remove:hover { color: #f38ba8; background: rgba(243,139,168,0.1); }
 
 /* Label chips */
 .lb-labels {

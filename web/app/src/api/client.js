@@ -161,6 +161,11 @@ export const api = {
     return request(`/api/ai/clusters/${clusterId}/faces/${faceId}`, { method: 'DELETE' })
   },
 
+  /** DELETE /api/ai/faces/:faceId/person — unassign face from confirmed person */
+  unassignFace(faceId) {
+    return request(`/api/ai/faces/${faceId}/person`, { method: 'DELETE' })
+  },
+
   /** GET /api/ai/persons */
   getPersons() {
     return request('/api/ai/persons')

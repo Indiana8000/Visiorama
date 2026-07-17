@@ -214,6 +214,12 @@ func (r *PersonsRepo) RemoveFaceFromCluster(faceID int64) error {
 	return err
 }
 
+// UnassignFace removes a face from its person (confirmed or not).
+func (r *PersonsRepo) UnassignFace(faceID int64) error {
+	_, err := r.db.Exec(`DELETE FROM ai_face_assignments WHERE face_id = ?`, faceID)
+	return err
+}
+
 // ListPersons returns all named persons with face/media counts and cover crop.
 func (r *PersonsRepo) ListPersons() ([]Person, error) {
 	rows, err := r.db.Query(`
@@ -336,10 +342,7 @@ func (r *PersonsRepo) PendingClusterCount() (int, error) {
 		WHERE a.face_id IS NULL`).Scan(&unassignedFaces); err != nil {
 		return 0, err
 	}
-	if unnamedPersons > 0 {
-		return unnamedPersons, nil
-	}
-	return unassignedFaces, nil
+	return unnamedPersons + unassignedFaces, nil
 }
 
 func blobToF32(b []byte) []float32 {

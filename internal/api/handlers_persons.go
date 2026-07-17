@@ -166,6 +166,20 @@ func (h *personsHandler) removeFaceFromCluster(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DELETE /api/ai/faces/{faceId}/person — remove face from its confirmed person
+func (h *personsHandler) unassignFace(w http.ResponseWriter, r *http.Request) {
+	faceID, ok := parseID(w, r, "faceId")
+	if !ok {
+		return
+	}
+	repo := repositories.NewPersonsRepo(h.store.DB())
+	if err := repo.UnassignFace(faceID); err != nil {
+		writeError(w, http.StatusInternalServerError, "db", err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // GET /api/ai/persons — list named persons
 func (h *personsHandler) listPersons(w http.ResponseWriter, r *http.Request) {
 	repo := repositories.NewPersonsRepo(h.store.DB())

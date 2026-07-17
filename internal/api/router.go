@@ -67,6 +67,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	mux.HandleFunc("GET /api/ai/persons/{personId}/media", ph.getPersonMedia)
 	mux.HandleFunc("GET /api/ai/counts", ph.statusCounts)
 	mux.HandleFunc("GET /api/ai/crops/{filename}", ph.serveCrop)
+	mux.HandleFunc("DELETE /api/ai/faces/{faceId}/person", ph.unassignFace)
 
 	mh2 := &mapHandler{store: store}
 	mux.HandleFunc("GET /api/map/clusters", mh2.getClusters)
