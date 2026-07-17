@@ -63,6 +63,34 @@ CREATE INDEX IF NOT EXISTS idx_albums_parent  ON albums(parent_album_id);
 
 `
 
+// aiTables are created once; IF NOT EXISTS makes them idempotent.
+var aiTables = []string{
+	`CREATE TABLE IF NOT EXISTS ai_jobs (
+		media_id     INTEGER NOT NULL PRIMARY KEY REFERENCES media(id),
+		status       TEXT    NOT NULL CHECK(status IN ('queued','running','success','failed')),
+		attempts     INTEGER NOT NULL DEFAULT 0,
+		queued_at    TEXT    NOT NULL,
+		finished_at  TEXT,
+		error        TEXT
+	)`,
+	`CREATE TABLE IF NOT EXISTS ai_labels (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		media_id     INTEGER NOT NULL REFERENCES media(id),
+		label        TEXT    NOT NULL,
+		confidence   REAL    NOT NULL,
+		source       TEXT    NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_ai_labels_media ON ai_labels(media_id)`,
+	`CREATE TABLE IF NOT EXISTS ai_faces (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		media_id     INTEGER NOT NULL REFERENCES media(id),
+		bbox_json    TEXT    NOT NULL,
+		embedding    BLOB    NOT NULL,
+		crop_path    TEXT    NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_ai_faces_media ON ai_faces(media_id)`,
+}
+
 // simpleAlterations are run after schema creation; "duplicate column" errors are ignored.
 var simpleAlterations = []string{
 	`ALTER TABLE albums ADD COLUMN dir_mtime_ns INTEGER`,
@@ -113,6 +141,11 @@ func Migrate(s *Store) error {
 	}
 	if err := migrateScanJobsAtomic(s); err != nil {
 		return err
+	}
+	for _, stmt := range aiTables {
+		if _, err := s.db.Exec(stmt); err != nil {
+			return fmt.Errorf("ai table migration: %w", err)
+		}
 	}
 	return nil
 }

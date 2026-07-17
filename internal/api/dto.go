@@ -112,4 +112,8 @@ type AIStatusResponse struct {
 	LoadedModels []string `json:"loadedModels,omitempty"`
 	QueueDepth   int      `json:"queueDepth,omitempty"`
 	Workers      int      `json:"workers,omitempty"`
+	JobsQueued   int      `json:"jobsQueued,omitempty"`
+	JobsRunning  int      `json:"jobsRunning,omitempty"`
+	JobsDone     int      `json:"jobsDone,omitempty"`
+	JobsFailed   int      `json:"jobsFailed,omitempty"`
 }

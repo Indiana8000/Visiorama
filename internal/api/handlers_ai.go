@@ -11,7 +11,8 @@ import (
 
 type aiHandler struct {
 	cfg    *app.Config
-	client *ai.Client // nil when visiorama-ai is not available
+	client *ai.Client      // nil when visiorama-ai is not available
+	queue  *ai.QueueRunner // nil when AI not configured
 }
 
 // status returns the AI sidecar availability and, if reachable, its current state.
@@ -36,11 +37,19 @@ func (h *aiHandler) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, AIStatusResponse{
+	resp := AIStatusResponse{
 		Available:    true,
 		Version:      sidecarStatus.Version,
 		LoadedModels: sidecarStatus.LoadedModels,
 		QueueDepth:   sidecarStatus.QueueDepth,
 		Workers:      sidecarStatus.Workers,
-	})
+	}
+	if h.queue != nil {
+		s := h.queue.Stats()
+		resp.JobsQueued = int(s.Queued.Load())
+		resp.JobsRunning = int(s.Running.Load())
+		resp.JobsDone = int(s.Done.Load())
+		resp.JobsFailed = int(s.Failed.Load())
+	}
+	writeJSON(w, http.StatusOK, resp)
 }

@@ -68,6 +68,10 @@ func Run(cfg *app.Config) error {
 	if err := tcRepo.FailStale(now); err != nil {
 		slog.Warn("failed to clean up stale transcode jobs", "err", err)
 	}
+	aiRepo := repositories.NewAIRepo(store.DB())
+	if err := aiRepo.FailStale(now); err != nil {
+		slog.Warn("failed to clean up stale ai jobs", "err", err)
+	}
 
 	defaultWidth := 320
 	if len(cfg.Thumbnails.Sizes) > 0 {
@@ -135,7 +139,15 @@ func Run(cfg *app.Config) error {
 	}
 	pingCancel()
 
-	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache, aiClient)
+	// AI queue — start only when sidecar is available or binary can be spawned.
+	var aiQueue *ai.QueueRunner
+	if aiClient != nil || ai.BinaryAvailable(cfg.AI.Binary) {
+		aiQueue = ai.NewQueueRunner(cfg, aiRepo, aiClient)
+		go aiQueue.Start(ctx)
+		slog.Info("ai queue runner started")
+	}
+
+	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache, aiClient, aiQueue)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

@@ -302,6 +302,28 @@ func scanMedia(row *sql.Row) (*Media, error) {
 	return m, err
 }
 
+// ListIDsIndexedSince returns IDs of media that have no ai_job row yet
+// (i.e. never been analysed). The since parameter is unused but kept for
+// future use when an indexed_at column is available.
+func (r *MediaRepo) ListIDsIndexedSince(_ string) ([]int64, error) {
+	rows, err := r.db.Query(`
+		SELECT id FROM media
+		WHERE id NOT IN (SELECT media_id FROM ai_jobs)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func collectMedia(rows *sql.Rows) ([]Media, error) {
 	var out []Media
 	for rows.Next() {

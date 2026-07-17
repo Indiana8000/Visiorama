@@ -18,16 +18,29 @@ type WarmerSuspender interface {
 	Resume()
 }
 
+// AIEnqueuer is the subset of ai.QueueRunner used by scan.Runner.
+type AIEnqueuer interface {
+	EnqueueScan(mediaIDs []int64)
+}
+
 type Runner struct {
-	mu     sync.Mutex
-	busy   bool
-	cfg    *app.Config
-	store  *index.Store
-	warmer WarmerSuspender
+	mu      sync.Mutex
+	busy    bool
+	cfg     *app.Config
+	store   *index.Store
+	warmer  WarmerSuspender
+	aiQueue AIEnqueuer // nil when AI not available
 }
 
 func NewRunner(cfg *app.Config, store *index.Store) *Runner {
 	return &Runner{cfg: cfg, store: store}
+}
+
+// SetAIQueue registers the AI queue so newly indexed media is enqueued after scan.
+func (r *Runner) SetAIQueue(q AIEnqueuer) {
+	r.mu.Lock()
+	r.aiQueue = q
+	r.mu.Unlock()
 }
 
 // SetWarmer registers the thumb warmer so the runner can suspend it during scans.
@@ -113,6 +126,20 @@ func (r *Runner) TriggerAsync(scanID, mode, albumPath string) error {
 		finishedAt := time.Now().UTC().Format(time.RFC3339)
 		if err := scanRepo.UpdateStatus(scanID, status, &startedAt, &finishedAt); err != nil {
 			slog.Warn("scan: failed to persist final status", "scanId", scanID, "err", err)
+		}
+
+		// Enqueue newly indexed media for AI analysis.
+		r.mu.Lock()
+		aiQueue := r.aiQueue
+		r.mu.Unlock()
+		if aiQueue != nil && stats != nil && stats.Indexed.Load() > 0 {
+			mediaRepo := repositories.NewMediaRepo(r.store.DB())
+			ids, err := mediaRepo.ListIDsIndexedSince(startedAt)
+			if err != nil {
+				slog.Warn("scan: failed to list indexed media for AI", "err", err)
+			} else if len(ids) > 0 {
+				aiQueue.EnqueueScan(ids)
+			}
 		}
 
 		if stats != nil {
