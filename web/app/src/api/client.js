@@ -48,6 +48,11 @@ export const api = {
     return request(`/api/media/${mediaId}/metadata`)
   },
 
+  /** GET /api/media/:id/ai — labels and faces with person assignments */
+  getMediaAI(mediaId) {
+    return request(`/api/media/${mediaId}/ai`)
+  },
+
   /** GET /api/media/:id/thumbnail?size=... */
   thumbnailUrl(mediaId, size) {
     const qs = size ? `?size=${size}` : ''

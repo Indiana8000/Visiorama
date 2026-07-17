@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -205,6 +206,48 @@ func (h *mediaHandler) stream(w http.ResponseWriter, r *http.Request) {
 		modTime = info.ModTime()
 	}
 	http.ServeContent(w, r, m.Filename, modTime, f)
+}
+
+func (h *mediaHandler) getAI(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseMediaID(w, r)
+	if !ok {
+		return
+	}
+	aiRepo := repositories.NewAIRepo(h.store.DB())
+	labels, faces, err := aiRepo.GetMediaAI(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "db", err.Error())
+		return
+	}
+	cropBase := h.cfg.AI.FaceCacheDir
+	if cropBase == "" {
+		cropBase = "."
+	}
+	out := MediaAIDTO{
+		Labels: make([]MediaAILabelDTO, 0, len(labels)),
+		Faces:  make([]MediaAIFaceDTO, 0, len(faces)),
+	}
+	for _, l := range labels {
+		out.Labels = append(out.Labels, MediaAILabelDTO{
+			Label:      l.Label,
+			Confidence: l.Confidence,
+			Source:     l.Source,
+		})
+	}
+	for _, f := range faces {
+		cropURL := ""
+		if f.CropPath != "" {
+			cropURL = "/api/ai/crops/" + filepath.Base(f.CropPath)
+		}
+		out.Faces = append(out.Faces, MediaAIFaceDTO{
+			FaceID:     f.FaceID,
+			CropPath:   cropURL,
+			BBoxJSON:   f.BBoxJSON,
+			PersonID:   f.PersonID,
+			PersonName: f.PersonName,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func servePlaceholder(w http.ResponseWriter) {

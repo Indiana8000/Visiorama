@@ -158,6 +158,36 @@
             <dd>{{ media.gpsLat.toFixed(5) }}, {{ media.gpsLon.toFixed(5) }}</dd>
           </template>
         </dl>
+
+        <!-- AI persons -->
+        <template v-if="aiFaces.some(f => f.personId)">
+          <h3 class="lb-meta-section">Persons</h3>
+          <div class="lb-persons">
+            <router-link
+              v-for="face in aiFaces.filter(f => f.personId)"
+              :key="face.faceId"
+              :to="{ name: 'person', params: { personId: face.personId } }"
+              class="lb-person-chip"
+            >
+              <img v-if="face.cropPath" :src="face.cropPath" class="lb-person-chip__crop" />
+              <span v-else class="lb-person-chip__icon">👤</span>
+              <span class="lb-person-chip__name">{{ face.personName }}</span>
+            </router-link>
+          </div>
+        </template>
+
+        <!-- AI labels -->
+        <template v-if="aiLabels.length > 0">
+          <h3 class="lb-meta-section">Labels</h3>
+          <div class="lb-labels">
+            <span
+              v-for="label in aiLabels"
+              :key="label.label"
+              class="lb-label-chip"
+              :title="`${Math.round(label.confidence * 100)}% confidence`"
+            >{{ label.label }}</span>
+          </div>
+        </template>
       </div>
     </template>
   </div>
@@ -234,7 +264,32 @@ const streamSrc = computed(() => {
 })
 const thumbSrc = computed(() => media.value ? api.thumbnailUrl(media.value.id, 480) : '')
 
-const siblings = computed(() => store.currentAlbum?.media ?? [])
+// Person-context siblings — loaded when navigating from a person album.
+const personSiblings = ref([])
+const personSiblingsLoaded = ref(false)
+
+async function loadPersonSiblings(personId) {
+  if (!personId) return
+  personSiblings.value = []
+  personSiblingsLoaded.value = false
+  try {
+    // Fetch all pages so prev/next works across the full person album.
+    let page = 1
+    const all = []
+    while (true) {
+      const res = await api.getPersonMedia(parseInt(personId, 10), page, 200)
+      all.push(...(res.media ?? []))
+      if (!res.page?.hasNext) break
+      page++
+    }
+    personSiblings.value = all
+  } catch { /* ignore */ }
+  personSiblingsLoaded.value = true
+}
+
+const siblings = computed(() =>
+  fromPersons.value ? personSiblings.value : (store.currentAlbum?.media ?? [])
+)
 const siblingIndex = computed(() => siblings.value.findIndex(m => m.id === mediaId.value))
 const prevMedia = computed(() => siblingIndex.value > 0 ? siblings.value[siblingIndex.value - 1] : null)
 const nextMedia = computed(() => {
@@ -263,7 +318,7 @@ const fromMap = computed(() => route.query.from === 'map')
 const fromPersons = computed(() => route.query.from === 'persons')
 const backLabel = computed(() => {
   if (fromMap.value) return 'Back to map'
-  if (fromPersons.value) return 'Back to persons'
+  if (fromPersons.value) return route.query.personId ? 'Back to person' : 'Back to persons'
   return 'Back to album'
 })
 
@@ -283,7 +338,12 @@ function goBack() {
     if (q.album_id) params.set('album_id', q.album_id)
     router.push(`/map?${params}`)
   } else if (fromPersons.value) {
-    router.push({ name: 'persons' })
+    const pid = route.query.personId
+    if (pid) {
+      router.push({ name: 'person', params: { personId: pid } })
+    } else {
+      router.push({ name: 'persons' })
+    }
   } else if (media.value?.albumId != null) {
     router.push({ name: 'album', params: { id: media.value.albumId } })
   } else {
@@ -571,15 +631,39 @@ function slideshowAdvance() {
   scheduleSlideshowTick()
 }
 
+// --- AI data ---
+const aiLabels = ref([])
+const aiFaces = ref([])
+
+async function loadAI(id) {
+  try {
+    const res = await api.getMediaAI(id)
+    aiLabels.value = res.labels ?? []
+    aiFaces.value = res.faces ?? []
+  } catch {
+    aiLabels.value = []
+    aiFaces.value = []
+  }
+}
+
 // --- Load ---
 async function load(id) {
   if (!Number.isFinite(id) || id <= 0) return
   resetTranscodeState()
   resetZoom()
+  aiLabels.value = []
+  aiFaces.value = []
   await store.fetchMediaMetadata(id)
-  if (store.currentMedia && store.currentAlbum?.album?.id !== store.currentMedia.albumId) {
+  const personId = route.query.personId
+  if (personId) {
+    // Load person siblings only once per person context (not on every navigate).
+    if (!personSiblingsLoaded.value || personSiblings.value.length === 0) {
+      loadPersonSiblings(personId)
+    }
+  } else if (store.currentMedia && store.currentAlbum?.album?.id !== store.currentMedia.albumId) {
     store.fetchAlbum(store.currentMedia.albumId, 1, 500)
   }
+  loadAI(id)
 }
 
 // --- Keyboard ---
@@ -609,6 +693,13 @@ onUnmounted(() => {
 })
 
 watch(mediaId, (id) => load(id))
+
+watch(() => route.query.personId, (newId, oldId) => {
+  if (newId !== oldId) {
+    personSiblings.value = []
+    personSiblingsLoaded.value = false
+  }
+})
 </script>
 
 <style scoped>
@@ -907,6 +998,60 @@ watch(mediaId, (id) => load(id))
   font-size: 15px;
 }
 .state-msg--error { color: var(--danger); }
+
+.lb-meta-section {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 14px 0 8px;
+}
+
+/* Person chips */
+.lb-persons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lb-person-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px 4px 4px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 13px;
+  transition: border-color 0.15s;
+}
+.lb-person-chip:hover { border-color: var(--accent); text-decoration: none; }
+.lb-person-chip__crop {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.lb-person-chip__icon { font-size: 20px; width: 28px; text-align: center; }
+.lb-person-chip__name { font-weight: 500; }
+
+/* Label chips */
+.lb-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lb-label-chip {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 3px 9px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: default;
+}
 
 @media (max-width: 600px) {
   .lb-meta-list { grid-template-columns: 90px 1fr; }

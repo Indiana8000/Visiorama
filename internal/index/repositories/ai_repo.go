@@ -250,6 +250,63 @@ func (r *AIRepo) GetMediaPath(mediaID int64, rootPath string) (string, string, e
 	return rootPath + "/" + relPath, mediaType, nil
 }
 
+// MediaAILabel is a label row for one media item.
+type MediaAILabel struct {
+	Label      string
+	Confidence float64
+	Source     string
+}
+
+// MediaAIFace is a face + assigned person for one media item.
+type MediaAIFace struct {
+	FaceID    int64
+	CropPath  string
+	BBoxJSON  string
+	PersonID  *int64
+	PersonName *string
+}
+
+// GetMediaAI returns all labels and faces (with person assignment) for one media item.
+func (r *AIRepo) GetMediaAI(mediaID int64) (labels []MediaAILabel, faces []MediaAIFace, err error) {
+	rows, err := r.db.Query(
+		`SELECT label, confidence, source FROM ai_labels WHERE media_id = ? ORDER BY confidence DESC`,
+		mediaID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var l MediaAILabel
+		if err := rows.Scan(&l.Label, &l.Confidence, &l.Source); err != nil {
+			return nil, nil, err
+		}
+		labels = append(labels, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	frows, err := r.db.Query(`
+		SELECT f.id, f.crop_path, f.bbox_json, p.id, p.name
+		FROM ai_faces f
+		LEFT JOIN ai_face_assignments a ON a.face_id = f.id AND a.confirmed = 1
+		LEFT JOIN ai_persons p ON p.id = a.person_id
+		WHERE f.media_id = ?
+		ORDER BY f.id`, mediaID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer frows.Close()
+	for frows.Next() {
+		var f MediaAIFace
+		if err := frows.Scan(&f.FaceID, &f.CropPath, &f.BBoxJSON, &f.PersonID, &f.PersonName); err != nil {
+			return nil, nil, err
+		}
+		faces = append(faces, f)
+	}
+	return labels, faces, frows.Err()
+}
+
 // F32ToBlob encodes a float32 slice as little-endian bytes.
 func F32ToBlob(v []float32) []byte {
 	b := make([]byte, len(v)*4)

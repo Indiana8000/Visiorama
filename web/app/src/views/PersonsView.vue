@@ -63,7 +63,7 @@
 
       <div v-else-if="selectedPerson" class="person-media">
         <div class="person-media-header">
-          <button class="btn-back" @click="selectedPerson = null">← Back</button>
+          <button class="btn-back" @click="deselectPerson">← Back</button>
           <span class="person-media-name">{{ selectedPerson.name }}</span>
           <span class="person-media-count">{{ selectedPerson.mediaCount }} photos</span>
           <div class="person-actions">
@@ -77,7 +77,7 @@
             v-for="item in personMedia"
             :key="item.id"
             :media="item"
-            :extra-query="{ from: 'persons' }"
+            :extra-query="{ from: 'persons', personId: selectedPerson.id }"
           />
         </div>
         <div v-if="mediaPage.totalPages > 1" class="pagination">
@@ -126,9 +126,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '../api/client.js'
 import MediaTile from '../components/MediaTile.vue'
+
+const props = defineProps({
+  personId: { type: String, default: null },
+})
+
+const router = useRouter()
 
 const clusters = ref([])
 const clusterNames = ref({})
@@ -182,7 +189,13 @@ async function removeFace(cluster, face) {
 
 async function selectPerson(person) {
   selectedPerson.value = person
+  router.replace({ name: 'person', params: { personId: person.id } })
   await loadPersonMedia(1)
+}
+
+function deselectPerson() {
+  selectedPerson.value = null
+  router.replace({ name: 'persons' })
 }
 
 async function loadPersonMedia(page) {
@@ -226,7 +239,36 @@ async function confirmDelete(person) {
   }
 }
 
-onMounted(load)
+async function openPersonById(id) {
+  const numId = parseInt(id, 10)
+  if (!numId) return
+  // persons may not be loaded yet — load first if needed
+  let p = persons.value.find(x => x.id === numId)
+  if (!p) {
+    await load()
+    p = persons.value.find(x => x.id === numId)
+  }
+  if (p) {
+    selectedPerson.value = p
+    await loadPersonMedia(1)
+  }
+}
+
+onMounted(async () => {
+  if (props.personId) {
+    await openPersonById(props.personId)
+  } else {
+    await load()
+  }
+})
+
+watch(() => props.personId, (id) => {
+  if (!id) {
+    selectedPerson.value = null
+  } else {
+    openPersonById(id)
+  }
+})
 </script>
 
 <style scoped>

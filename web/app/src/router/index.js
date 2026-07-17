@@ -33,6 +33,12 @@ const routes = [
     name: 'persons',
     component: PersonsView,
   },
+  {
+    path: '/persons/:personId',
+    name: 'person',
+    component: PersonsView,
+    props: true,
+  },
 ]
 
 const router = createRouter({

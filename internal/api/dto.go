@@ -133,6 +133,25 @@ type PersonMediaDTO struct {
 	Page     PageInfo       `json:"page"`
 }
 
+type MediaAILabelDTO struct {
+	Label      string  `json:"label"`
+	Confidence float64 `json:"confidence"`
+	Source     string  `json:"source"`
+}
+
+type MediaAIFaceDTO struct {
+	FaceID     int64   `json:"faceId"`
+	CropPath   string  `json:"cropPath"`
+	BBoxJSON   string  `json:"bbox"`
+	PersonID   *int64  `json:"personId"`
+	PersonName *string `json:"personName"`
+}
+
+type MediaAIDTO struct {
+	Labels []MediaAILabelDTO `json:"labels"`
+	Faces  []MediaAIFaceDTO  `json:"faces"`
+}
+
 type AIStatusResponse struct {
 	Available    bool     `json:"available"`
 	Reason       string   `json:"reason,omitempty"`

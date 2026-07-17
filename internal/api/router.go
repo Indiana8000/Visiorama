@@ -31,6 +31,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	mux.HandleFunc("GET /api/media/{mediaId}/metadata", mh.getMetadata)
 	mux.HandleFunc("GET /api/media/{mediaId}/thumbnail", mh.getThumbnail)
 	mux.HandleFunc("GET /api/media/{mediaId}/stream", mh.stream)
+	mux.HandleFunc("GET /api/media/{mediaId}/ai", mh.getAI)
 
 	sh := &scanHandler{cfg: cfg, store: store, runner: runner}
 	mux.HandleFunc("POST /api/scans", sh.trigger)
