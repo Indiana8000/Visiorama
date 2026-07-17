@@ -3,6 +3,7 @@ package scan
 import (
 	"database/sql"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
 	"strings"
 )
@@ -60,6 +61,8 @@ func ComputeFolderDeltas(db *sql.DB, libraryRoot string, albumPath string, exclu
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
+	slog.Debug("mtime_delta: loaded DB albums in scope", "count", len(dbAlbums), "albumPath", albumPath)
 
 	result := &FolderDeltaResult{}
 	if len(dbAlbums) == 0 {
@@ -122,10 +125,16 @@ func ComputeFolderDeltas(db *sql.DB, libraryRoot string, albumPath string, exclu
 	// Detect DB albums (within scope) that no longer exist on disk.
 	for relPath := range dbAlbums {
 		if !seen[relPath] {
+			slog.Debug("mtime_delta: album not seen on disk", "path", relPath)
 			result.DeletedDirs = append(result.DeletedDirs, relPath)
 		}
 	}
 
+	slog.Debug("mtime_delta: delta result",
+		"changed", len(result.ChangedDirs),
+		"deleted", len(result.DeletedDirs),
+		"dbEmpty", result.DBEmpty,
+	)
 	return result, nil
 }
 

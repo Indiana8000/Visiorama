@@ -42,6 +42,11 @@ func (s *FullScanner) Run(ctx context.Context, scanID string) (*Stats, error) {
 
 func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, albumPath string, onProgress ProgressFunc) (*Stats, error) {
 	InitExtensions(s.cfg.Filtering.AllowedImageExtensions, s.cfg.Filtering.AllowedVideoExtensions)
+	if albumPath != "" {
+		slog.Debug("full scan: subtree mode", "scanID", scanID, "albumPath", albumPath)
+	} else {
+		slog.Debug("full scan: full library mode", "scanID", scanID)
+	}
 
 	db := s.store.DB()
 	albumRepo := repositories.NewAlbumsRepo(db)
@@ -64,11 +69,24 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, albumP
 	// When scanning a subtree, pre-seed seen tables with everything outside it
 	// so the orphan-cleanup step does not delete albums/media outside the scope.
 	if albumPath != "" {
+		var nAlbums, nMedia int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM albums WHERE relative_path NOT LIKE ? AND relative_path != ?`,
+			albumPath+"/%", albumPath,
+		).Scan(&nAlbums); err == nil {
+			slog.Debug("full scan: pre-seeding out-of-scope albums", "count", nAlbums, "albumPath", albumPath)
+		}
 		if _, err := db.Exec(
 			`INSERT OR IGNORE INTO _seen_albums SELECT relative_path FROM albums WHERE relative_path NOT LIKE ? AND relative_path != ?`,
 			albumPath+"/%", albumPath,
 		); err != nil {
 			return nil, fmt.Errorf("pre-seed seen_albums: %w", err)
+		}
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM media WHERE relative_path NOT LIKE ?`,
+			albumPath+"/%",
+		).Scan(&nMedia); err == nil {
+			slog.Debug("full scan: pre-seeding out-of-scope media", "count", nMedia, "albumPath", albumPath)
 		}
 		if _, err := db.Exec(
 			`INSERT OR IGNORE INTO _seen_media SELECT relative_path FROM media WHERE relative_path NOT LIKE ?`,
@@ -103,6 +121,12 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, albumP
 			}
 			if pid, ok := albumCache[parent]; ok {
 				parentID = &pid
+			} else {
+				// Parent not in cache — look up from DB to avoid overwriting with nil.
+				if pa, err := albumRepo.GetByPath(parent); err == nil && pa != nil {
+					albumCache[parent] = pa.ID
+					parentID = &pa.ID
+				}
 			}
 		}
 		id, err := albumRepo.Upsert(&repositories.Album{
@@ -315,7 +339,9 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, albumP
 	if seenMediaCount > 0 || seenAlbumCount > 1 {
 		// Delete orphan media: paths in DB but not seen on disk this run.
 		if orphanPaths, err := mediaRepo.ListOrphanPaths(db); err == nil {
+			slog.Debug("full scan: orphan media candidates", "count", len(orphanPaths))
 			for _, p := range orphanPaths {
+				slog.Debug("full scan: deleting orphan media", "path", p)
 				if err := mediaRepo.DeleteByPath(p); err != nil {
 					slog.Warn("delete orphan media", "path", p, "err", err)
 				}
@@ -325,7 +351,9 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, albumP
 		// Delete orphan albums deepest-first so parent counts are correct.
 		if orphanPaths, err := albumRepo.ListOrphanPaths(db); err == nil {
 			sortByDepthDesc(orphanPaths)
+			slog.Debug("full scan: orphan album candidates", "count", len(orphanPaths))
 			for _, p := range orphanPaths {
+				slog.Debug("full scan: deleting orphan album", "path", p)
 				if err := albumRepo.DeleteByPath(p); err != nil {
 					slog.Warn("delete orphan album", "path", p, "err", err)
 				}

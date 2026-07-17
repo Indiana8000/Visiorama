@@ -37,6 +37,11 @@ func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, er
 // processed. albumPath restricts the scan to a subtree (empty = entire library).
 func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, albumPath string, onProgress ProgressFunc) (*Stats, bool, error) {
 	InitExtensions(s.cfg.Filtering.AllowedImageExtensions, s.cfg.Filtering.AllowedVideoExtensions)
+	if albumPath != "" {
+		slog.Debug("quick scan: subtree mode", "scanID", scanID, "albumPath", albumPath)
+	} else {
+		slog.Debug("quick scan: full library mode", "scanID", scanID)
+	}
 
 	db := s.store.DB()
 	excludeSet := buildExcludeSet(s.cfg.Filtering.ExcludePatterns)
@@ -68,6 +73,9 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 	}
 
 	slog.Info("quick scan: re-scanning changed dirs", "scanID", scanID, "count", len(delta.ChangedDirs))
+	for _, d := range delta.ChangedDirs {
+		slog.Debug("quick scan: changed dir", "path", d)
+	}
 
 	albumRepo := repositories.NewAlbumsRepo(db)
 	mediaRepo := repositories.NewMediaRepo(db)
@@ -97,6 +105,12 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 			}
 			if pid, ok := albumCache[parent]; ok {
 				parentID = &pid
+			} else {
+				// Parent not in cache — look up from DB to avoid overwriting with nil.
+				if pa, err := albumRepo.GetByPath(parent); err == nil && pa != nil {
+					albumCache[parent] = pa.ID
+					parentID = &pa.ID
+				}
 			}
 		}
 		id, err := albumRepo.Upsert(&repositories.Album{
@@ -121,6 +135,7 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 		parts := strings.Split(albumPath, "/")
 		for i := range parts {
 			p := strings.Join(parts[:i+1], "/")
+			slog.Debug("quick scan: pre-seeding album cache", "path", p)
 			if _, err := ensureAlbum(p); err != nil {
 				return nil, false, fmt.Errorf("pre-seed album cache %q: %w", p, err)
 			}
@@ -295,9 +310,11 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 			slog.Warn("quick scan: list paths for album", "path", relPath, "err", err)
 			continue
 		}
+		slog.Debug("quick scan: checking album for orphans", "path", relPath, "dbFiles", len(dbPaths))
 		for _, p := range dbPaths {
 			absP := filepath.Join(root, filepath.FromSlash(p))
 			if _, statErr := os.Stat(absP); os.IsNotExist(statErr) {
+				slog.Debug("quick scan: orphan media found", "path", p)
 				if err := mediaRepo.DeleteByPath(p); err != nil {
 					stats.ErrCount.Add(1)
 					slog.Warn("quick scan: delete orphan media", "path", p, "err", err)
