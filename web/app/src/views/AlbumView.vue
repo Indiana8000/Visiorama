@@ -48,15 +48,12 @@
         </div>
       </section>
 
-      <!-- Empty state: only show scan button on root, not in sub-albums -->
+      <!-- Empty state -->
       <div
         v-if="store.currentAlbum.childAlbums.length === 0 && store.currentAlbum.media.length === 0"
         class="empty-state"
       >
-        <template v-if="store.currentAlbum.album.relativePath === ''">
-          <p class="empty-state__msg">No media found. Run a scan to index your library.</p>
-          <ScanButton @done="load(1)" />
-        </template>
+        <p v-if="store.currentAlbum.album.relativePath === ''" class="empty-state__msg">No media found. Run a scan to index your library.</p>
         <p v-else class="empty-state__msg">This album is empty.</p>
       </div>
 
@@ -85,7 +82,6 @@ import { useGalleryStore } from '../stores/gallery.js'
 import { api } from '../api/client.js'
 import AlbumTile from '../components/AlbumTile.vue'
 import MediaTile from '../components/MediaTile.vue'
-import ScanButton from '../components/ScanButton.vue'
 
 const props = defineProps({
   id: { type: String, default: null },

@@ -1,6 +1,18 @@
 <template>
   <div class="persons-view">
 
+    <!-- Meta bar -->
+    <div class="persons-meta">
+      <span class="persons-meta__info">
+        {{ totalMediaCount.toLocaleString() }} items
+        · {{ persons.length.toLocaleString() }} person{{ persons.length !== 1 ? 's' : '' }}
+      </span>
+      <div class="meta-buttons">
+        <button class="btn-nav" @click="$router.push('/map')">🗺 Map</button>
+        <button class="btn-nav" @click="$router.back()">&#128193; Album</button>
+      </div>
+    </div>
+
     <!-- Cluster review section -->
     <section v-if="clusters.length > 0" class="section">
       <h2 class="section-title">
@@ -113,7 +125,7 @@
           </div>
           <div class="person-tile__info">
             <span class="person-tile__name" :title="person.name">{{ person.name }}</span>
-            <span class="person-tile__count">{{ person.mediaCount }} photos</span>
+            <span class="person-tile__count">👥 {{ person.mediaCount }} photos</span>
           </div>
         </div>
       </div>
@@ -134,7 +146,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client.js'
 import MediaTile from '../components/MediaTile.vue'
@@ -154,6 +166,8 @@ const personMedia = ref([])
 const mediaPage = ref({ page: 1, totalPages: 1, hasPrev: false, hasNext: false })
 const renameTarget = ref(null)
 const renameValue = ref('')
+
+const totalMediaCount = computed(() => persons.value.reduce((s, p) => s + (p.mediaCount || 0), 0))
 
 async function load() {
   loading.value = true
@@ -295,6 +309,31 @@ watch(() => props.personId, (id) => {
 <style scoped>
 .persons-view { padding-bottom: 40px; }
 
+.persons-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.persons-meta__info { flex: 1; }
+.meta-buttons { display: flex; gap: 8px; align-items: center; }
+.btn-nav {
+  background: #313244;
+  border: none;
+  color: #cdd6f4;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.btn-nav:hover { background: #45475a; }
+
 .section { margin-bottom: 40px; }
 .section-title {
   font-size: 15px;
@@ -408,7 +447,7 @@ watch(() => props.personId, (id) => {
 .grid--persons {
   display: grid;
   gap: var(--gap);
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 }
 .grid--media {
   display: grid;

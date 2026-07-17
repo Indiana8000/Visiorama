@@ -1,32 +1,23 @@
 <template>
   <div class="scan-btn-wrap">
+    <span v-if="statusMsg" class="scan-status">{{ statusMsg }}</span>
     <button
       class="scan-btn scan-btn--reanalyze"
       :disabled="reanalyzing || isRunning || isQueued"
-      :title="`Re-analyze AI for current album`"
+      title="Re-analyze AI for current album"
       @click="handleReanalyze"
-    >{{ reanalyzeMsg }}</button>
+    >Re-analyze</button>
     <button
       class="scan-btn"
-      :class="{ 'scan-btn--running': isRunning, 'scan-btn--done': isDone, 'scan-btn--failed': isFailed }"
       :disabled="isRunning || isQueued"
       @click="handleScan('quick')"
-    >
-      <span v-if="isIdle">Quick Scan</span>
-      <span v-else-if="isQueued">Queued…</span>
-      <span v-else-if="isRunning">Scanning…</span>
-      <span v-else-if="isDone">&#10003; Done</span>
-      <span v-else-if="isFailed">&#10007; Failed</span>
-    </button>
+    >Quick Scan</button>
     <button
       class="scan-btn scan-btn--full"
       :disabled="isRunning || isQueued"
       @click="handleScan('full')"
       title="Re-index entire library"
-    >
-      Full
-    </button>
-    <span v-if="statusMsg" class="scan-status">{{ statusMsg }}</span>
+    >Full</button>
   </div>
 </template>
 
@@ -65,14 +56,17 @@ function fmtElapsed(s) {
 }
 
 const status = computed(() => job.value?.status ?? 'idle')
-const isIdle = computed(() => status.value === 'idle')
 const isQueued = computed(() => status.value === 'queued')
 const isRunning = computed(() => status.value === 'running')
 const isDone = computed(() => status.value === 'success')
 const isFailed = computed(() => status.value === 'failed')
 
+const reanalyzing = ref(false)
+const reanalyzeStatus = ref(null) // null | 'queued' | 'error'
+
 const statusMsg = computed(() => {
   if (errorMsg.value) return errorMsg.value
+  if (reanalyzeStatus.value === 'queued') return 'Re-analyze queued'
   if (!job.value) return null
   const mode = job.value.mode === 'full' ? 'full' : 'quick'
   const t = elapsedSec.value > 0 ? ` (${fmtElapsed(elapsedSec.value)})` : ''
@@ -87,9 +81,9 @@ const statusMsg = computed(() => {
   }
   if (isDone.value) {
     const fb = job.value.fallbackToFull ? ' (fell back to full)' : ''
-    return `[${mode}] ${job.value.indexedFiles} new, ${job.value.scannedFiles} scanned${fb}`
+    return `✓ ${job.value.indexedFiles} new, ${job.value.scannedFiles} scanned${fb}`
   }
-  if (isFailed.value) return `Errors: ${job.value.errorCount}`
+  if (isFailed.value) return `✗ Errors: ${job.value.errorCount}`
   return null
 })
 
@@ -135,21 +129,14 @@ onUnmounted(() => {
   stopElapsed()
 })
 
-const reanalyzing = ref(false)
-const reanalyzeDone = ref(false)
-const reanalyzeMsg = computed(() => {
-  if (reanalyzing.value) return '🔄 Queuing…'
-  if (reanalyzeDone.value) return '✓ Queued'
-  return '🔍 Re-analyze'
-})
-
 async function handleReanalyze() {
   reanalyzing.value = true
-  reanalyzeDone.value = false
+  reanalyzeStatus.value = null
+  errorMsg.value = null
   try {
     await api.reanalyzeAlbum(props.albumPath)
-    reanalyzeDone.value = true
-    setTimeout(() => { reanalyzeDone.value = false }, 3000)
+    reanalyzeStatus.value = 'queued'
+    setTimeout(() => { reanalyzeStatus.value = null }, 3000)
   } catch (e) {
     errorMsg.value = 'Re-analyze failed: ' + e.message
   } finally {
@@ -186,7 +173,7 @@ async function handleScan(mode) {
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  color: var(--text);
+  color: var(--muted);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
@@ -198,28 +185,21 @@ async function handleScan(mode) {
 }
 .scan-btn--full {
   padding: 5px 10px;
-  opacity: 0.7;
 }
 .scan-btn--full:hover:not(:disabled) {
-  opacity: 1;
   background: #7c3aed;
   border-color: #7c3aed;
   color: #fff;
 }
 .scan-btn--reanalyze {
   padding: 5px 10px;
-  opacity: 0.7;
 }
 .scan-btn--reanalyze:hover:not(:disabled) {
-  opacity: 1;
   background: #0891b2;
   border-color: #0891b2;
   color: #fff;
 }
 .scan-btn:disabled { opacity: 0.4; cursor: default; }
-.scan-btn--running { border-color: var(--accent); color: var(--accent); }
-.scan-btn--done { border-color: var(--success); color: var(--success); }
-.scan-btn--failed { border-color: var(--danger); color: var(--danger); }
 
-.scan-status { font-size: 12px; color: var(--muted); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scan-status { font-size: 12px; color: var(--muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
