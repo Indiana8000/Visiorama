@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	dbscanEps    = 0.4 // cosine-distance threshold
+	dbscanEps    = 0.35 // cosine-distance threshold (ArcFace L2-norm: same person <0.3, different >0.4)
 	dbscanMinPts = 2
 	defaultPageSize = 50
 )

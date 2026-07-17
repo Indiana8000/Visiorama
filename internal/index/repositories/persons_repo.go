@@ -93,24 +93,17 @@ func (r *PersonsRepo) SaveClusterAssignments(assignments map[int64]int) error {
 	if err != nil {
 		return err
 	}
-	// Remove existing unconfirmed assignments for these faces.
-	ids := make([]int64, 0, len(assignments))
-	for id := range assignments {
-		ids = append(ids, id)
-	}
-	// SQLite has no array bind — delete individually in batch.
-	delStmt, err := tx.Prepare(`
-		DELETE FROM ai_face_assignments WHERE face_id = ? AND confirmed = 0`)
-	if err != nil {
+	// Remove all unconfirmed assignments and their orphaned unnamed persons.
+	if _, err := tx.Exec(`
+		DELETE FROM ai_persons
+		WHERE name = ''
+		  AND id NOT IN (SELECT person_id FROM ai_face_assignments WHERE confirmed = 1)`); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
-	defer delStmt.Close()
-	for _, id := range ids {
-		if _, err := delStmt.Exec(id); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
+	if _, err := tx.Exec(`DELETE FROM ai_face_assignments WHERE confirmed = 0`); err != nil {
+		_ = tx.Rollback()
+		return err
 	}
 
 	// Group by cluster, upsert temp person rows for new clusters.
