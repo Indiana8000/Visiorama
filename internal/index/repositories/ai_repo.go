@@ -81,11 +81,9 @@ func (r *AIRepo) EnqueueNew(mediaIDs []int64, queuedAt string) error {
 // EnqueueAll inserts or resets ai_jobs for every media item in the DB.
 func (r *AIRepo) EnqueueAll(queuedAt string) error {
 	_, err := r.db.Exec(`
-		INSERT INTO ai_jobs (media_id, status, attempts, queued_at)
-		SELECT id, 'queued', 0, ?
-		FROM media
-		ON CONFLICT(media_id) DO UPDATE
-		  SET status = 'queued', attempts = 0, queued_at = excluded.queued_at, finished_at = NULL, error = NULL`,
+		INSERT OR REPLACE INTO ai_jobs (media_id, status, attempts, queued_at, finished_at, error)
+		SELECT id, 'queued', 0, ?, NULL, NULL
+		FROM media`,
 		queuedAt)
 	return err
 }
@@ -93,14 +91,11 @@ func (r *AIRepo) EnqueueAll(queuedAt string) error {
 // EnqueueForAlbum re-queues all media in the given album path (non-recursive) for AI analysis.
 func (r *AIRepo) EnqueueForAlbum(albumPath, queuedAt string) error {
 	_, err := r.db.Exec(`
-		INSERT INTO ai_jobs (media_id, status, attempts, queued_at)
-		SELECT m.id, 'queued', 0, ?
+		INSERT OR REPLACE INTO ai_jobs (media_id, status, attempts, queued_at, finished_at, error)
+		SELECT m.id, 'queued', 0, ?, NULL, NULL
 		FROM media m
 		JOIN albums a ON a.id = m.album_id
-		WHERE a.relative_path = ?
-		ON CONFLICT(media_id) DO UPDATE
-		  SET status = 'queued', attempts = 0, queued_at = excluded.queued_at,
-		      finished_at = NULL, error = NULL`,
+		WHERE a.relative_path = ?`,
 		queuedAt, albumPath)
 	return err
 }
