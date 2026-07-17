@@ -22,7 +22,7 @@ func (h *mediaHandler) maybeStartOrphanScan() {
 	scanID := fmt.Sprintf("scan-orphan-%d", time.Now().UnixMilli())
 	scanRepo := repositories.NewScanRepo(h.store.DB())
 	_ = scanRepo.Create(&repositories.ScanJob{ID: scanID, Mode: "orphan", Status: "queued"})
-	if err := h.runner.TriggerAsync(scanID, "orphan"); err != nil {
+	if err := h.runner.TriggerAsync(scanID, "orphan", ""); err != nil {
 		slog.Warn("media: could not start orphan scan", "err", err)
 	} else {
 		slog.Info("media: triggered orphan scan", "scanId", scanID)
@@ -40,7 +40,7 @@ type mediaHandler struct {
 // orphanTrigger is the subset of scan.Runner used by the media handler.
 type orphanTrigger interface {
 	IsRunning() bool
-	TriggerAsync(scanID, mode string) error
+	TriggerAsync(scanID, mode, albumPath string) error
 }
 
 // thumbWarmer is the subset of thumbs.Warmer used by the media handler.

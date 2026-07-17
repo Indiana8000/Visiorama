@@ -18,7 +18,7 @@
           <span v-else class="crumb crumb--current">{{ crumb.name }}</span>
         </template>
       </nav>
-      <ScanButton @done="onScanDone" />
+      <ScanButton :albumPath="currentAlbumPath" @done="onScanDone" />
     </header>
     <main class="app-main">
       <router-view />
@@ -35,6 +35,8 @@ import ScanButton from './components/ScanButton.vue'
 const router = useRouter()
 const route = useRoute()
 const store = useGalleryStore()
+
+const currentAlbumPath = computed(() => store.currentAlbum?.album?.relativePath ?? '')
 
 // Skip root crumb — it's always the "Visiorama" logo link
 const breadcrumbs = computed(() => {

@@ -37,10 +37,10 @@ func NewFullScanner(cfg *app.Config, store *index.Store) *FullScanner {
 type ProgressFunc func(scanned, indexed, skipped, errors int64)
 
 func (s *FullScanner) Run(ctx context.Context, scanID string) (*Stats, error) {
-	return s.RunWithProgress(ctx, scanID, nil)
+	return s.RunWithProgress(ctx, scanID, "", nil)
 }
 
-func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProgress ProgressFunc) (*Stats, error) {
+func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, albumPath string, onProgress ProgressFunc) (*Stats, error) {
 	InitExtensions(s.cfg.Filtering.AllowedImageExtensions, s.cfg.Filtering.AllowedVideoExtensions)
 
 	db := s.store.DB()
@@ -58,6 +58,23 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 	} {
 		if _, err := db.Exec(ddl); err != nil {
 			return nil, fmt.Errorf("setup seen tables: %w", err)
+		}
+	}
+
+	// When scanning a subtree, pre-seed seen tables with everything outside it
+	// so the orphan-cleanup step does not delete albums/media outside the scope.
+	if albumPath != "" {
+		if _, err := db.Exec(
+			`INSERT OR IGNORE INTO _seen_albums SELECT relative_path FROM albums WHERE relative_path NOT LIKE ? AND relative_path != ?`,
+			albumPath+"/%", albumPath,
+		); err != nil {
+			return nil, fmt.Errorf("pre-seed seen_albums: %w", err)
+		}
+		if _, err := db.Exec(
+			`INSERT OR IGNORE INTO _seen_media SELECT relative_path FROM media WHERE relative_path NOT LIKE ?`,
+			albumPath+"/%",
+		); err != nil {
+			return nil, fmt.Errorf("pre-seed seen_media: %w", err)
 		}
 	}
 
@@ -193,8 +210,12 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, onProg
 	}()
 
 	root := s.cfg.Library.RootPath
-	slog.Info("full scan: starting walk", "root", root)
-	walkErr := filepath.WalkDir(root, func(absPath string, d fs.DirEntry, err error) error {
+	walkRoot := root
+	if albumPath != "" {
+		walkRoot = filepath.Join(root, filepath.FromSlash(albumPath))
+	}
+	slog.Info("full scan: starting walk", "root", walkRoot)
+	walkErr := filepath.WalkDir(walkRoot, func(absPath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			stats.ErrCount.Add(1)
 			return nil

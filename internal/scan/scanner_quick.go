@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/Indiana8000/visiorama/internal/app"
@@ -29,13 +30,12 @@ func NewQuickScanner(cfg *app.Config, store *index.Store) *QuickScanner {
 // Run executes the quick scan for the given scanID.
 // Returns (stats, fallbackOccurred, error).
 func (s *QuickScanner) Run(ctx context.Context, scanID string) (*Stats, bool, error) {
-	return s.RunWithProgress(ctx, scanID, nil)
+	return s.RunWithProgress(ctx, scanID, "", nil)
 }
 
 // RunWithProgress is like Run but calls onProgress after each changed dir is
-// processed. During running state scanned counter = dirs checked; at the end
-// the runner overwrites it with actual file counts.
-func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, onProgress ProgressFunc) (*Stats, bool, error) {
+// processed. albumPath restricts the scan to a subtree (empty = entire library).
+func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, albumPath string, onProgress ProgressFunc) (*Stats, bool, error) {
 	InitExtensions(s.cfg.Filtering.AllowedImageExtensions, s.cfg.Filtering.AllowedVideoExtensions)
 
 	db := s.store.DB()
@@ -43,7 +43,7 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, onPro
 	root := s.cfg.Library.RootPath
 
 	// --- Step 1: Compute folder deltas ---
-	delta, err := ComputeFolderDeltas(db, root, excludeSet, s.cfg.Scan.IgnoreDirMtime)
+	delta, err := ComputeFolderDeltas(db, root, albumPath, excludeSet, s.cfg.Scan.IgnoreDirMtime)
 	if err != nil {
 		return nil, false, fmt.Errorf("compute folder deltas: %w", err)
 	}
@@ -51,13 +51,13 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, onPro
 	// --- Step 2: Check uncertainty rules → fall back if needed ---
 	if delta.DBEmpty {
 		slog.Info("quick scan: DB empty, falling back to full scan", "scanID", scanID)
-		stats, err := NewFullScanner(s.cfg, s.store).Run(ctx, scanID)
+		stats, err := NewFullScanner(s.cfg, s.store).RunWithProgress(ctx, scanID, albumPath, onProgress)
 		return stats, true, err
 	}
 	if len(delta.DeletedDirs) > 0 {
 		slog.Info("quick scan: deleted dirs detected, falling back to full scan",
 			"scanID", scanID, "deletedDirs", delta.DeletedDirs)
-		stats, err := NewFullScanner(s.cfg, s.store).Run(ctx, scanID)
+		stats, err := NewFullScanner(s.cfg, s.store).RunWithProgress(ctx, scanID, albumPath, onProgress)
 		return stats, true, err
 	}
 
@@ -114,6 +114,17 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, onPro
 	// Pre-seed album cache with root so parent lookups work for top-level dirs.
 	if _, err := ensureAlbum(""); err != nil {
 		return nil, false, fmt.Errorf("ensure root album: %w", err)
+	}
+	// Pre-seed the entire ancestor chain of albumPath so new subdirs get the
+	// correct parent_album_id even when their parent is the scan root itself.
+	if albumPath != "" {
+		parts := strings.Split(albumPath, "/")
+		for i := range parts {
+			p := strings.Join(parts[:i+1], "/")
+			if _, err := ensureAlbum(p); err != nil {
+				return nil, false, fmt.Errorf("pre-seed album cache %q: %w", p, err)
+			}
+		}
 	}
 
 	// Build a set of changed dirs for O(1) lookup.

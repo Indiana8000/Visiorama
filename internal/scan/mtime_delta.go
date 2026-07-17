@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"io/fs"
 	"path/filepath"
+	"strings"
 )
 
 // FolderDeltaResult is returned by ComputeFolderDeltas.
@@ -21,21 +22,19 @@ type FolderDeltaResult struct {
 	DeletedDirs []string
 }
 
-// ComputeFolderDeltas walks the root directory and compares each album
-// directory's mtime (nanoseconds) against the value stored in the albums
-// table (dir_mtime_ns column).  It returns a FolderDeltaResult that the
-// QuickScanner uses to decide which folders to re-scan and whether to fall
-// back to FullScanner.
+// ComputeFolderDeltas walks libraryRoot/albumPath and compares each album
+// directory's mtime against the DB.  albumPath="" means the entire library.
+// Only DB albums inside albumPath are considered, so sibling albums are never
+// falsely reported as deleted when scanning a subtree.
 //
-// When ignoreDirMtime is true every directory is treated as changed, which is
-// required for CIFS/SMB mounts where the kernel does not update dir mtime on
-// file changes.
-//
-// Only immediate filesystem traversal is performed; individual files are
-// never stat-ed.  Hidden directories and names in excludeSet are skipped,
-// matching FullScanner behaviour.
-func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool, ignoreDirMtime bool) (*FolderDeltaResult, error) {
-	// Load all known album mtimes from the DB keyed by relative_path.
+// When ignoreDirMtime is true every directory is treated as changed.
+func ComputeFolderDeltas(db *sql.DB, libraryRoot string, albumPath string, excludeSet map[string]bool, ignoreDirMtime bool) (*FolderDeltaResult, error) {
+	walkRoot := libraryRoot
+	if albumPath != "" {
+		walkRoot = filepath.Join(libraryRoot, filepath.FromSlash(albumPath))
+	}
+
+	// Load DB album mtimes; only keep entries inside albumPath.
 	rows, err := db.Query(`SELECT relative_path, dir_mtime_ns FROM albums WHERE relative_path != ''`)
 	if err != nil {
 		return nil, err
@@ -51,6 +50,10 @@ func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool, ig
 			rows.Close()
 			return nil, err
 		}
+		// When scanning a subtree, ignore albums outside it.
+		if albumPath != "" && !strings.HasPrefix(relPath, albumPath+"/") && relPath != albumPath {
+			continue
+		}
 		dbAlbums[relPath] = dbEntry{mtimeNs: mtimeNs}
 	}
 	rows.Close()
@@ -65,10 +68,14 @@ func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool, ig
 	}
 
 	// Track which DB albums we have seen on disk.
+	// Pre-mark the walk root itself as seen — the walk callback skips it.
 	seen := make(map[string]bool, len(dbAlbums))
+	if albumPath != "" {
+		seen[albumPath] = true
+	}
 
-	// Walk the root and compare directory mtimes.
-	walkErr := filepath.WalkDir(root, func(absPath string, d fs.DirEntry, err error) error {
+	// Walk and compare directory mtimes. relPaths are always relative to libraryRoot.
+	walkErr := filepath.WalkDir(walkRoot, func(absPath string, d fs.DirEntry, err error) error {
 		if err != nil || !d.IsDir() {
 			return nil
 		}
@@ -78,13 +85,13 @@ func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool, ig
 			return filepath.SkipDir
 		}
 
-		relPath, _ := filepath.Rel(root, absPath)
+		relPath, _ := filepath.Rel(libraryRoot, absPath)
 		relPath = filepath.ToSlash(relPath)
 		if relPath == "." {
 			relPath = ""
 		}
-		if relPath == "" {
-			// root itself — not an album dir
+		if relPath == "" || relPath == albumPath {
+			// walkRoot itself is an existing album — skip the dir entry, walk contents.
 			return nil
 		}
 
@@ -92,7 +99,6 @@ func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool, ig
 
 		info, err := d.Info()
 		if err != nil {
-			// Can't stat — treat as changed to be safe.
 			result.ChangedDirs = append(result.ChangedDirs, relPath)
 			return nil
 		}
@@ -100,7 +106,6 @@ func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool, ig
 
 		entry, inDB := dbAlbums[relPath]
 		if !inDB {
-			// New folder not yet in DB — mark as changed so it gets scanned.
 			result.ChangedDirs = append(result.ChangedDirs, relPath)
 			return nil
 		}
@@ -114,7 +119,7 @@ func ComputeFolderDeltas(db *sql.DB, root string, excludeSet map[string]bool, ig
 		return nil, walkErr
 	}
 
-	// Detect DB albums that no longer exist on disk.
+	// Detect DB albums (within scope) that no longer exist on disk.
 	for relPath := range dbAlbums {
 		if !seen[relPath] {
 			result.DeletedDirs = append(result.DeletedDirs, relPath)

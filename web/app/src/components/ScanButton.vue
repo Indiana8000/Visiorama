@@ -28,6 +28,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '../api/client.js'
 
+const props = defineProps({
+  albumPath: { type: String, default: '' },
+})
 const emit = defineEmits(['done'])
 
 const POLL_INTERVAL_MS = 2000
@@ -129,7 +132,7 @@ onUnmounted(() => {
 async function handleScan(mode) {
   errorMsg.value = null
   try {
-    const newJob = await api.triggerScan(mode)
+    const newJob = await api.triggerScan(mode, props.albumPath)
     job.value = newJob
     startElapsed()
     stopPolling()

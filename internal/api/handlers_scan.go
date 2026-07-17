@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Indiana8000/visiorama/internal/app"
@@ -19,7 +21,8 @@ type scanHandler struct {
 }
 
 type scanRequest struct {
-	Mode string `json:"mode"`
+	Mode      string `json:"mode"`
+	AlbumPath string `json:"albumPath"` // optional: relative path to scan subtree
 }
 
 func (h *scanHandler) trigger(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +36,16 @@ func (h *scanHandler) trigger(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Mode != "full" && req.Mode != "quick" && req.Mode != "orphan" {
 		badRequest(w, "mode must be 'full', 'quick' or 'orphan'")
+		return
+	}
+
+	// Sanitise albumPath: must be clean, relative, no escaping root.
+	albumPath := filepath.ToSlash(filepath.Clean(req.AlbumPath))
+	if albumPath == "." {
+		albumPath = ""
+	}
+	if strings.HasPrefix(albumPath, "..") || filepath.IsAbs(albumPath) {
+		badRequest(w, "albumPath must be a relative path inside the library")
 		return
 	}
 
@@ -53,7 +66,7 @@ func (h *scanHandler) trigger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.runner.TriggerAsync(scanID, req.Mode); err != nil {
+	if err := h.runner.TriggerAsync(scanID, req.Mode, albumPath); err != nil {
 		writeError(w, http.StatusConflict, "SCAN_ALREADY_RUNNING", "a scan job is already in progress")
 		return
 	}

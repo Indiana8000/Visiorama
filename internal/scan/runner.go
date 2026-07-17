@@ -42,8 +42,9 @@ func (r *Runner) IsRunning() bool {
 }
 
 // TriggerAsync enqueues a scan job and runs it in a goroutine.
+// albumPath restricts the scan to a subtree (empty = entire library).
 // Returns an error if a scan is already running.
-func (r *Runner) TriggerAsync(scanID, mode string) error {
+func (r *Runner) TriggerAsync(scanID, mode, albumPath string) error {
 	r.mu.Lock()
 	if r.busy {
 		r.mu.Unlock()
@@ -82,10 +83,10 @@ func (r *Runner) TriggerAsync(scanID, mode string) error {
 
 		switch mode {
 		case "full":
-			stats, err = NewFullScanner(r.cfg, r.store).RunWithProgress(context.Background(), scanID, onProgress)
+			stats, err = NewFullScanner(r.cfg, r.store).RunWithProgress(context.Background(), scanID, albumPath, onProgress)
 		case "quick":
 			stats, err, fallback = func() (*Stats, error, bool) {
-				s, fb, e := NewQuickScanner(r.cfg, r.store).RunWithProgress(context.Background(), scanID, onProgress)
+				s, fb, e := NewQuickScanner(r.cfg, r.store).RunWithProgress(context.Background(), scanID, albumPath, onProgress)
 				return s, e, fb
 			}()
 		case "orphan":

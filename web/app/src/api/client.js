@@ -60,11 +60,11 @@ export const api = {
   },
 
   /** POST /api/scans */
-  triggerScan(mode = 'quick') {
+  triggerScan(mode = 'quick', albumPath = '') {
     return request('/api/scans', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }),
+      body: JSON.stringify({ mode, albumPath }),
     })
   },
 
