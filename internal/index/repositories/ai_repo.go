@@ -90,6 +90,35 @@ func (r *AIRepo) EnqueueAll(queuedAt string) error {
 	return err
 }
 
+// EnqueueForAlbum re-queues all media in the given album path (non-recursive) for AI analysis.
+func (r *AIRepo) EnqueueForAlbum(albumPath, queuedAt string) error {
+	_, err := r.db.Exec(`
+		INSERT INTO ai_jobs (media_id, status, attempts, queued_at)
+		SELECT m.id, 'queued', 0, ?
+		FROM media m
+		JOIN albums a ON a.id = m.album_id
+		WHERE a.relative_path = ?
+		ON CONFLICT(media_id) DO UPDATE
+		  SET status = 'queued', attempts = 0, queued_at = excluded.queued_at,
+		      finished_at = NULL, error = NULL`,
+		queuedAt, albumPath)
+	return err
+}
+
+// DeleteOrphanedAIData removes labels, faces and jobs for media that no longer exists.
+func (r *AIRepo) DeleteOrphanedAIData() (int64, error) {
+	var total int64
+	for _, tbl := range []string{"ai_labels", "ai_faces", "ai_jobs"} {
+		res, err := r.db.Exec(`DELETE FROM ` + tbl + ` WHERE media_id NOT IN (SELECT id FROM media)`)
+		if err != nil {
+			return total, err
+		}
+		n, _ := res.RowsAffected()
+		total += n
+	}
+	return total, nil
+}
+
 // ClaimNext atomically picks the next queued job and marks it running.
 // Returns nil when the queue is empty.
 func (r *AIRepo) ClaimNext() (*AIJob, error) {
@@ -213,31 +242,130 @@ func (r *AIRepo) SaveLabels(mediaID int64, labels []AILabel) error {
 	return tx.Commit()
 }
 
-// SaveFaces replaces all faces for a media item.
+// SaveFaces replaces all faces for a media item while preserving confirmed person assignments.
+// Confirmed faces are matched to new detections by nearest BBox center; unmatched confirmed
+// faces keep their old embedding/crop. Faces without confirmed assignments are fully replaced.
 func (r *AIRepo) SaveFaces(mediaID int64, faces []AIFace) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`DELETE FROM ai_faces WHERE media_id = ?`, mediaID); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	stmt, err := tx.Prepare(`
-		INSERT INTO ai_faces (media_id, bbox_json, embedding, crop_path)
-		VALUES (?, ?, ?, ?)`)
+
+	// Load existing faces that have a confirmed assignment — these must not lose their person link.
+	rows, err := tx.Query(`
+		SELECT f.id, f.bbox_json FROM ai_faces f
+		JOIN ai_face_assignments a ON a.face_id = f.id AND a.confirmed = 1
+		WHERE f.media_id = ?`, mediaID)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
-	defer stmt.Close()
-	for _, f := range faces {
-		if _, err := stmt.Exec(mediaID, f.BBoxJSON, f.Embedding, f.CropPath); err != nil {
+	var confirmed []confirmedFace
+	for rows.Next() {
+		var cf confirmedFace
+		if err := rows.Scan(&cf.id, &cf.bboxJSON); err != nil {
+			rows.Close()
 			_ = tx.Rollback()
 			return err
 		}
+		confirmed = append(confirmed, cf)
+	}
+	rows.Close()
+
+	// Delete only unconfirmed faces.
+	if _, err := tx.Exec(`
+		DELETE FROM ai_faces WHERE media_id = ?
+		  AND id NOT IN (
+		    SELECT face_id FROM ai_face_assignments WHERE confirmed = 1
+		  )`, mediaID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// For each new detection, check if it overlaps a confirmed face (BBox IoU).
+	// Matched confirmed faces get their embedding + crop updated in-place.
+	// Unmatched new detections are inserted fresh.
+	matched := make(map[int64]bool)
+	for _, f := range faces {
+		bestID, bestIoU := matchBBox(f.BBoxJSON, confirmed)
+		if bestIoU > 0.3 && !matched[bestID] {
+			matched[bestID] = true
+			if _, err := tx.Exec(`
+				UPDATE ai_faces SET bbox_json = ?, embedding = ?, crop_path = ? WHERE id = ?`,
+				f.BBoxJSON, f.Embedding, f.CropPath, bestID); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		} else {
+			if _, err := tx.Exec(`
+				INSERT INTO ai_faces (media_id, bbox_json, embedding, crop_path)
+				VALUES (?, ?, ?, ?)`, mediaID, f.BBoxJSON, f.Embedding, f.CropPath); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		}
 	}
 	return tx.Commit()
+}
+
+type confirmedFace struct {
+	id       int64
+	bboxJSON string
+}
+
+// matchBBox finds the confirmed face with highest IoU to bboxJSON. Returns id and IoU.
+func matchBBox(bboxJSON string, confirmed []confirmedFace) (int64, float64) {
+	ax, ay, aw, ah := parseBBox(bboxJSON)
+	var bestID int64
+	var bestIoU float64
+	for _, cf := range confirmed {
+		bx, by, bw, bh := parseBBox(cf.bboxJSON)
+		iou := bboxIoU(ax, ay, aw, ah, bx, by, bw, bh)
+		if iou > bestIoU {
+			bestIoU = iou
+			bestID = cf.id
+		}
+	}
+	return bestID, bestIoU
+}
+
+func parseBBox(s string) (x, y, w, h float64) {
+	// {"x":10,"y":20,"w":30,"h":40}
+	var m map[string]float64
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		return 0, 0, 0, 0
+	}
+	return m["x"], m["y"], m["w"], m["h"]
+}
+
+func bboxIoU(ax, ay, aw, ah, bx, by, bw, bh float64) float64 {
+	ix1 := max64(ax, bx)
+	iy1 := max64(ay, by)
+	ix2 := min64(ax+aw, bx+bw)
+	iy2 := min64(ay+ah, by+bh)
+	if ix2 <= ix1 || iy2 <= iy1 {
+		return 0
+	}
+	inter := (ix2 - ix1) * (iy2 - iy1)
+	union := aw*ah + bw*bh - inter
+	if union <= 0 {
+		return 0
+	}
+	return inter / union
+}
+
+func max64(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min64(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // GetMediaPath returns the absolute file path for a media item.

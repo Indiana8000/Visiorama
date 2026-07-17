@@ -47,6 +47,14 @@
               :disabled="!clusterNames[cluster.clusterId]?.trim()"
               @click="namePerson(cluster)"
             >Save</button>
+            <select
+              v-if="persons.length > 0"
+              class="person-select"
+              @change="addToExisting(cluster, $event)"
+            >
+              <option value="">+ Add to…</option>
+              <option v-for="p in persons" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
           </div>
         </div>
       </div>
@@ -172,6 +180,19 @@ async function namePerson(cluster) {
     await load()
   } catch (e) {
     alert('Failed to save: ' + e.message)
+  }
+}
+
+async function addToExisting(cluster, event) {
+  const personId = parseInt(event.target.value, 10)
+  event.target.value = ''
+  if (!personId) return
+  try {
+    await api.mergePersons(personId, cluster.clusterId)
+    await load()
+  } catch (e) {
+    console.error('addToExisting failed', e)
+    alert('Failed to add to person: ' + (e.message || e))
   }
 }
 
@@ -361,7 +382,17 @@ watch(() => props.personId, (id) => {
   font-size: 13px;
   color: var(--muted);
 }
-.cluster-footer { display: flex; gap: 8px; align-items: center; }
+.cluster-footer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.person-select {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.person-select:focus { outline: none; border-color: var(--accent); }
 .name-input {
   flex: 1;
   background: var(--bg3);
@@ -390,24 +421,29 @@ watch(() => props.personId, (id) => {
   flex-direction: column;
   background: var(--bg2);
   border: 1px solid var(--border);
+  border-left: 3px solid #0891b2;
   border-radius: var(--radius);
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.15s, border-color 0.15s;
+  text-decoration: none;
+  color: inherit;
 }
-.person-tile:hover { transform: scale(1.03); border-color: var(--accent); }
+.person-tile:hover { transform: scale(1.03); border-color: #0891b2; }
 .person-tile__cover {
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   background: var(--bg3);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  width: 100%;
 }
-.person-tile__img { width: 100%; height: 100%; object-fit: cover; }
+.person-tile__img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s; }
+.person-tile:hover .person-tile__img { transform: scale(1.08); }
 .person-tile__placeholder { font-size: 48px; }
 .person-tile__info {
-  padding: 8px;
+  padding: 8px 10px;
   background: var(--bg3);
   display: flex;
   flex-direction: column;

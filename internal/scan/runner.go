@@ -21,6 +21,7 @@ type WarmerSuspender interface {
 // AIEnqueuer is the subset of ai.QueueRunner used by scan.Runner.
 type AIEnqueuer interface {
 	EnqueueScan(mediaIDs []int64)
+	EnqueueAll(queuedAt string)
 }
 
 type Runner struct {
@@ -128,17 +129,22 @@ func (r *Runner) TriggerAsync(scanID, mode, albumPath string) error {
 			slog.Warn("scan: failed to persist final status", "scanId", scanID, "err", err)
 		}
 
-		// Enqueue newly indexed media for AI analysis.
+		// Enqueue media for AI analysis after scan.
 		r.mu.Lock()
 		aiQueue := r.aiQueue
 		r.mu.Unlock()
-		if aiQueue != nil && stats != nil && stats.Indexed.Load() > 0 {
-			mediaRepo := repositories.NewMediaRepo(r.store.DB())
-			ids, err := mediaRepo.ListIDsIndexedSince(startedAt)
-			if err != nil {
-				slog.Warn("scan: failed to list indexed media for AI", "err", err)
-			} else if len(ids) > 0 {
-				aiQueue.EnqueueScan(ids)
+		if aiQueue != nil {
+			now := time.Now().UTC().Format(time.RFC3339)
+			if mode == "full" && r.cfg.AI.ReanalyzeOnFullScan {
+				aiQueue.EnqueueAll(now)
+			} else if stats != nil && stats.Indexed.Load() > 0 {
+				mediaRepo := repositories.NewMediaRepo(r.store.DB())
+				ids, err := mediaRepo.ListIDsIndexedSince(startedAt)
+				if err != nil {
+					slog.Warn("scan: failed to list indexed media for AI", "err", err)
+				} else if len(ids) > 0 {
+					aiQueue.EnqueueScan(ids)
+				}
 			}
 		}
 

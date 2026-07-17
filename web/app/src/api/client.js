@@ -181,6 +181,17 @@ export const api = {
     return request('/api/ai/counts')
   },
 
+  /** POST /api/ai/reanalyze?albumPath=... */
+  reanalyzeAlbum(albumPath) {
+    const q = albumPath ? `?albumPath=${encodeURIComponent(albumPath)}` : ''
+    return request(`/api/ai/reanalyze${q}`, { method: 'POST' })
+  },
+
+  /** POST /api/ai/cleanup */
+  cleanupOrphanedAI() {
+    return request('/api/ai/cleanup', { method: 'POST' })
+  },
+
   /** POST /api/albums/by-media-ids */
   getAlbumsByMediaIDs(ids) {
     return request('/api/albums/by-media-ids', {

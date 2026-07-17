@@ -223,10 +223,16 @@ func (r *PersonsRepo) UnassignFace(faceID int64) error {
 // ListPersons returns all named persons with face/media counts and cover crop.
 func (r *PersonsRepo) ListPersons() ([]Person, error) {
 	rows, err := r.db.Query(`
-		SELECT p.id, p.name, p.cover_face_id, f.crop_path, p.created_at,
+		SELECT p.id, p.name, p.cover_face_id,
+		       COALESCE(
+		         (SELECT f2.crop_path FROM ai_faces f2
+		          JOIN ai_face_assignments a2 ON a2.face_id = f2.id AND a2.person_id = p.id
+		          WHERE f2.crop_path != '' ORDER BY f2.id LIMIT 1),
+		         NULL
+		       ) AS cover_crop,
+		       p.created_at,
 		       COUNT(DISTINCT a.face_id), COUNT(DISTINCT fa.media_id)
 		FROM ai_persons p
-		LEFT JOIN ai_faces f ON f.id = p.cover_face_id
 		LEFT JOIN ai_face_assignments a ON a.person_id = p.id
 		LEFT JOIN ai_faces fa ON fa.id = a.face_id
 		WHERE p.name != ''
@@ -291,7 +297,7 @@ func (r *PersonsRepo) MergePersons(dstID, srcID int64) error {
 		return err
 	}
 	if _, err := tx.Exec(`
-		UPDATE ai_face_assignments SET person_id = ? WHERE person_id = ?`, dstID, srcID); err != nil {
+		UPDATE ai_face_assignments SET person_id = ?, confirmed = 1 WHERE person_id = ?`, dstID, srcID); err != nil {
 		_ = tx.Rollback()
 		return err
 	}

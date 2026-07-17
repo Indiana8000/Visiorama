@@ -53,8 +53,10 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	adh := &adminHandler{cfg: cfg, store: store}
 	mux.HandleFunc("GET /api/reset_thumbs", adh.resetThumbs)
 
-	aih := &aiHandler{cfg: cfg, client: aiClient, queue: aiQueue}
+	aih := &aiHandler{cfg: cfg, store: store, client: aiClient, queue: aiQueue}
 	mux.HandleFunc("GET /api/ai/status", aih.status)
+	mux.HandleFunc("POST /api/ai/reanalyze", aih.reanalyze)
+	mux.HandleFunc("POST /api/ai/cleanup", aih.cleanup)
 
 	ph := &personsHandler{cfg: cfg, store: store}
 	mux.HandleFunc("GET /api/ai/clusters", ph.getClusters)

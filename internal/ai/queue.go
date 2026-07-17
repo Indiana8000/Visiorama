@@ -50,6 +50,15 @@ func (q *QueueRunner) EnqueueScan(mediaIDs []int64) {
 	q.stats.Queued.Add(int64(len(mediaIDs)))
 }
 
+// EnqueueAll implements scan.AIEnqueuer — re-queues every media item (used by ReanalyzeOnFullScan).
+func (q *QueueRunner) EnqueueAll(queuedAt string) {
+	if err := q.repo.EnqueueAll(queuedAt); err != nil {
+		slog.Warn("ai queue: enqueue all failed", "err", err)
+		return
+	}
+	slog.Info("ai queue: enqueued all media for re-analysis")
+}
+
 // Start launches worker goroutines. Blocks until ctx is cancelled.
 func (q *QueueRunner) Start(ctx context.Context) {
 	workers := q.cfg.AI.Workers

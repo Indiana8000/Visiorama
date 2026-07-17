@@ -1,6 +1,12 @@
 <template>
   <div class="scan-btn-wrap">
     <button
+      class="scan-btn scan-btn--reanalyze"
+      :disabled="reanalyzing || isRunning || isQueued"
+      :title="`Re-analyze AI for current album`"
+      @click="handleReanalyze"
+    >{{ reanalyzeMsg }}</button>
+    <button
       class="scan-btn"
       :class="{ 'scan-btn--running': isRunning, 'scan-btn--done': isDone, 'scan-btn--failed': isFailed }"
       :disabled="isRunning || isQueued"
@@ -129,6 +135,28 @@ onUnmounted(() => {
   stopElapsed()
 })
 
+const reanalyzing = ref(false)
+const reanalyzeDone = ref(false)
+const reanalyzeMsg = computed(() => {
+  if (reanalyzing.value) return '🔄 Queuing…'
+  if (reanalyzeDone.value) return '✓ Queued'
+  return '🔍 Re-analyze'
+})
+
+async function handleReanalyze() {
+  reanalyzing.value = true
+  reanalyzeDone.value = false
+  try {
+    await api.reanalyzeAlbum(props.albumPath)
+    reanalyzeDone.value = true
+    setTimeout(() => { reanalyzeDone.value = false }, 3000)
+  } catch (e) {
+    errorMsg.value = 'Re-analyze failed: ' + e.message
+  } finally {
+    reanalyzing.value = false
+  }
+}
+
 async function handleScan(mode) {
   errorMsg.value = null
   try {
@@ -176,6 +204,16 @@ async function handleScan(mode) {
   opacity: 1;
   background: #7c3aed;
   border-color: #7c3aed;
+  color: #fff;
+}
+.scan-btn--reanalyze {
+  padding: 5px 10px;
+  opacity: 0.7;
+}
+.scan-btn--reanalyze:hover:not(:disabled) {
+  opacity: 1;
+  background: #0891b2;
+  border-color: #0891b2;
   color: #fff;
 }
 .scan-btn:disabled { opacity: 0.4; cursor: default; }
