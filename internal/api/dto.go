@@ -104,3 +104,12 @@ type ThumbWarmerStatus struct {
 	Running      bool  `json:"running"`
 	PendingItems int64 `json:"pendingItems"`
 }
+
+type AIStatusResponse struct {
+	Available    bool     `json:"available"`
+	Reason       string   `json:"reason,omitempty"`
+	Version      string   `json:"version,omitempty"`
+	LoadedModels []string `json:"loadedModels,omitempty"`
+	QueueDepth   int      `json:"queueDepth,omitempty"`
+	Workers      int      `json:"workers,omitempty"`
+}

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Indiana8000/visiorama/internal/ai"
 	"github.com/Indiana8000/visiorama/internal/api"
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/convert"
@@ -109,7 +110,32 @@ func Run(cfg *app.Config) error {
 		slog.Warn("ffmpeg not found — video thumbnails unavailable; install ffmpeg or add it to PATH")
 	}
 
-	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache)
+	// Detect optional visiorama-ai sidecar.
+	// Detection order: (1) ping the socket — sidecar may be running without the binary in PATH,
+	// e.g. started manually in dev or managed by an external supervisor.
+	// (2) fall back to PATH lookup for informational logging only.
+	socketPath := cfg.AI.SocketPath
+	if socketPath == "" {
+		socketPath = "/tmp/visiorama-ai.sock"
+	}
+	var aiClient *ai.Client
+	pingCtx, pingCancel := context.WithTimeout(ctx, 3*time.Second)
+	probe := ai.NewClient(socketPath)
+	if err := probe.Ping(pingCtx); err == nil {
+		aiClient = probe
+		slog.Info("visiorama-ai sidecar connected", "socket", socketPath)
+	} else if ai.BinaryAvailable(cfg.AI.Binary) {
+		// Binary exists but socket not yet ready — keep client so queue can retry.
+		aiClient = probe
+		slog.Info("visiorama-ai found but not yet reachable (will retry on first use)",
+			"path", ai.BinaryPath(cfg.AI.Binary), "socket", socketPath, "err", err)
+	} else {
+		slog.Info("visiorama-ai not found — AI recognition features disabled",
+			"socket", socketPath)
+	}
+	pingCancel()
+
+	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache, aiClient)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

@@ -36,16 +36,27 @@ jobs:
           for TARGET in "linux/amd64" "linux/arm64" "linux/arm"; do
             OS=$(echo $TARGET | cut -d/ -f1)
             ARCH=$(echo $TARGET | cut -d/ -f2)
-            OUTPUT="dist/visiorama-${OS}-${ARCH}"
+            LABEL="${OS}-${ARCH}"
+            GOARM=""
             # armv7 label for arm
             if [ "$ARCH" = "arm" ]; then
-              OUTPUT="dist/visiorama-linux-armv7"
+              LABEL="linux-armv7"
               GOARM=7
             fi
-            CGO_ENABLED=0 GOOS=$OS GOARCH=$ARCH GOARM=${GOARM:-} \
+
+            # Main binary (CGO_ENABLED=0, statically linked)
+            OUT="dist/visiorama-${LABEL}"
+            CGO_ENABLED=0 GOOS=$OS GOARCH=$ARCH GOARM=${GOARM} \
               go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-              -o "$OUTPUT" ./cmd/visiorama
-            sha256sum "$OUTPUT" > "${OUTPUT}.sha256"
+              -o "$OUT" ./cmd/visiorama
+            sha256sum "$OUT" > "${OUT}.sha256"
+
+            # visiorama-ai binary (CGO_ENABLED=0 for now; ONNX runtime added in Epic I-2)
+            OUT_AI="dist/visiorama-ai-${LABEL}"
+            CGO_ENABLED=0 GOOS=$OS GOARCH=$ARCH GOARM=${GOARM} \
+              go build -trimpath -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+              -o "$OUT_AI" ./cmd/visiorama-ai
+            sha256sum "$OUT_AI" > "${OUT_AI}.sha256"
           done
 
       - name: Create GitHub Release
@@ -58,5 +69,11 @@ jobs:
             dist/visiorama-linux-arm64.sha256
             dist/visiorama-linux-armv7
             dist/visiorama-linux-armv7.sha256
+            dist/visiorama-ai-linux-amd64
+            dist/visiorama-ai-linux-amd64.sha256
+            dist/visiorama-ai-linux-arm64
+            dist/visiorama-ai-linux-arm64.sha256
+            dist/visiorama-ai-linux-armv7
+            dist/visiorama-ai-linux-armv7.sha256
             install.sh
           generate_release_notes: true

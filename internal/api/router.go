@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/Indiana8000/visiorama/internal/ai"
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/convert"
 	"github.com/Indiana8000/visiorama/internal/index"
@@ -11,7 +12,7 @@ import (
 	"github.com/Indiana8000/visiorama/internal/transcode"
 )
 
-func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRunner *transcode.Runner, imgCache *convert.Cache) http.Handler {
+func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRunner *transcode.Runner, imgCache *convert.Cache, aiClient *ai.Client) http.Handler {
 	mux := http.NewServeMux()
 	runner := scan.NewRunner(cfg, store)
 	runner.SetWarmer(warmer)
@@ -47,6 +48,9 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 
 	adh := &adminHandler{cfg: cfg, store: store}
 	mux.HandleFunc("GET /api/reset_thumbs", adh.resetThumbs)
+
+	aih := &aiHandler{cfg: cfg, client: aiClient}
+	mux.HandleFunc("GET /api/ai/status", aih.status)
 
 	mh2 := &mapHandler{store: store}
 	mux.HandleFunc("GET /api/map/clusters", mh2.getClusters)

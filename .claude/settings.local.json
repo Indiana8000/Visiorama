@@ -29,7 +29,8 @@
       "Bash(bash /tmp/race_verify.sh)",
       "Bash(bash /tmp/error_check.sh)",
       "Bash(bash /tmp/queue_check.sh)",
-      "Bash(bash /tmp/resource_check.sh)"
+      "Bash(bash /tmp/resource_check.sh)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(f['rfilename']\\) for f in d.get\\('siblings',[]\\)]\")"
     ]
   }
 }

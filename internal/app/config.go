@@ -18,6 +18,32 @@ type Config struct {
 	Transcode  TranscodeConfig  `yaml:"transcode"`
 	Limits     LimitsConfig     `yaml:"limits"`
 	Database   DatabaseConfig   `yaml:"database"`
+	AI         AIConfig         `yaml:"ai"`
+}
+
+type AIConfig struct {
+	// Binary is the path to the visiorama-ai binary.
+	// Empty = auto-detect from PATH. If not found, AI features are disabled.
+	Binary string `yaml:"binary"`
+	// SocketPath is the Unix socket used to communicate with visiorama-ai.
+	// Empty = use default <dataDir>/visiorama-ai.sock
+	SocketPath string `yaml:"socketPath"`
+	// ModelDir is where ONNX models are stored and downloaded to.
+	// Empty = <dir of database.sqlitePath>/models
+	ModelDir string `yaml:"modelDir"`
+	// FaceCacheDir is where face crop JPEGs are stored.
+	// Empty = <dir of database.sqlitePath>/faces
+	FaceCacheDir string `yaml:"faceCacheDir"`
+	// Workers is the number of concurrent inference workers in visiorama-ai.
+	// 0 = auto (min(2, numCPU))
+	Workers int `yaml:"workers"`
+	// LabelMinConfidence is the minimum detection confidence to persist a label (0.0–1.0).
+	LabelMinConfidence float64 `yaml:"labelMinConfidence"`
+	// FaceMinPixels is the minimum face bounding-box dimension in pixels.
+	// Smaller faces are skipped.
+	FaceMinPixels int `yaml:"faceMinPixels"`
+	// ReanalyzeOnFullScan re-queues all media (not just new/changed) on a full scan.
+	ReanalyzeOnFullScan bool `yaml:"reanalyzeOnFullScan"`
 }
 
 type TranscodeConfig struct {
@@ -114,6 +140,10 @@ func LoadConfig(path string) (*Config, error) {
 
 func defaultConfig() *Config {
 	return &Config{
+		AI: AIConfig{
+			LabelMinConfidence: 0.6,
+			FaceMinPixels:      40,
+		},
 		Server:    ServerConfig{Host: "0.0.0.0", Port: 8080},
 		Transcode: TranscodeConfig{TTLHours: 48, ImageMaxDim: 2400},
 		Scan:   ScanConfig{DefaultMode: "quick", QuickFallbackToFull: true, MaxWorkers: 0},
