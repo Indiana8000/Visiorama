@@ -323,12 +323,23 @@ func (r *PersonsRepo) UnclusteredCount() (int, error) {
 	return n, err
 }
 
-// PendingClusterCount returns number of unnamed clusters.
+// PendingClusterCount returns number of unnamed clusters plus faces not yet assigned to any cluster.
+// This gives a non-zero badge even before the first DBSCAN run.
 func (r *PersonsRepo) PendingClusterCount() (int, error) {
-	var n int
-	err := r.db.QueryRow(
-		`SELECT COUNT(*) FROM ai_persons WHERE name = ''`).Scan(&n)
-	return n, err
+	var unnamedPersons, unassignedFaces int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM ai_persons WHERE name = ''`).Scan(&unnamedPersons); err != nil {
+		return 0, err
+	}
+	if err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM ai_faces f
+		LEFT JOIN ai_face_assignments a ON a.face_id = f.id
+		WHERE a.face_id IS NULL`).Scan(&unassignedFaces); err != nil {
+		return 0, err
+	}
+	if unnamedPersons > 0 {
+		return unnamedPersons, nil
+	}
+	return unassignedFaces, nil
 }
 
 func blobToF32(b []byte) []float32 {

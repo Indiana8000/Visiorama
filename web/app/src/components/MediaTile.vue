@@ -1,5 +1,5 @@
 <template>
-  <router-link :to="{ name: 'media', params: { id: media.id } }" class="media-tile">
+  <router-link :to="{ name: 'media', params: { id: media.id }, query: extraQuery || undefined }" class="media-tile">
     <div class="media-tile__thumb">
       <img
         :src="thumbSrc"
@@ -22,6 +22,10 @@ const props = defineProps({
   media: {
     type: Object,
     required: true,
+  },
+  extraQuery: {
+    type: Object,
+    default: null,
   },
 })
 

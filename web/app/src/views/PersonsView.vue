@@ -77,6 +77,7 @@
             v-for="item in personMedia"
             :key="item.id"
             :media="item"
+            :extra-query="{ from: 'persons' }"
           />
         </div>
         <div v-if="mediaPage.totalPages > 1" class="pagination">

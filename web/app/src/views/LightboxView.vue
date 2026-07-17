@@ -260,11 +260,16 @@ const slideshowNextSrc = computed(() => slideshowNextId.value ? api.streamUrl(sl
 const slideshowNextConvertSrc = computed(() => slideshowNextId.value ? api.convertUrl(slideshowNextId.value) : null)
 
 const fromMap = computed(() => route.query.from === 'map')
-const backLabel = computed(() => fromMap.value ? 'Back to map' : 'Back to album')
+const fromPersons = computed(() => route.query.from === 'persons')
+const backLabel = computed(() => {
+  if (fromMap.value) return 'Back to map'
+  if (fromPersons.value) return 'Back to persons'
+  return 'Back to album'
+})
 
 // --- Navigation ---
 function navigate(id) {
-  const q = fromMap.value ? { ...route.query } : {}
+  const q = (fromMap.value || fromPersons.value) ? { ...route.query } : {}
   router.push({ name: 'media', params: { id }, query: q })
 }
 
@@ -277,6 +282,8 @@ function goBack() {
     if (q.zoom)     params.set('zoom', q.zoom)
     if (q.album_id) params.set('album_id', q.album_id)
     router.push(`/map?${params}`)
+  } else if (fromPersons.value) {
+    router.push({ name: 'persons' })
   } else if (media.value?.albumId != null) {
     router.push({ name: 'album', params: { id: media.value.albumId } })
   } else {
