@@ -129,7 +129,7 @@ func Run(cfg *app.Config) error {
 	// (2) fall back to PATH lookup for informational logging only.
 	socketPath := cfg.AI.SocketPath
 	if socketPath == "" {
-		socketPath = "/tmp/visiorama-ai.sock"
+		socketPath = ai.DefaultSocketPath()
 	}
 	var aiClient *ai.Client
 	pingCtx, pingCancel := context.WithTimeout(ctx, 3*time.Second)

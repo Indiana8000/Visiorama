@@ -7,9 +7,20 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"time"
 )
+
+// DefaultSocketPath returns the platform-appropriate default Unix socket path.
+func DefaultSocketPath() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(os.TempDir(), "visiorama-ai.sock")
+	}
+	return "/tmp/visiorama-ai.sock"
+}
 
 // Client communicates with a running visiorama-ai sidecar over a Unix socket.
 type Client struct {

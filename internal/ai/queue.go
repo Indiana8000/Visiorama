@@ -218,7 +218,7 @@ func (q *QueueRunner) finishJob(mediaID int64, success bool, errMsg string) {
 func (q *QueueRunner) tryStartSidecar(ctx context.Context) *Client {
 	socketPath := q.cfg.AI.SocketPath
 	if socketPath == "" {
-		socketPath = "/tmp/visiorama-ai.sock"
+		socketPath = DefaultSocketPath()
 	}
 
 	// Ping first — may already be running.

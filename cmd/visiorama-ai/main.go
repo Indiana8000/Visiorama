@@ -27,7 +27,7 @@ func main() {
 	flag.Parse()
 
 	if *socketPath == "" {
-		*socketPath = "/tmp/visiorama-ai.sock"
+		*socketPath = ai.DefaultSocketPath()
 	}
 	if *modelDir == "" {
 		home, _ := os.UserCacheDir()

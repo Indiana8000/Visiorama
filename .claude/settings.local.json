@@ -58,7 +58,9 @@
       "Bash(python -c \"import onnxruntime as ort; print\\('ort ok', ort.__version__\\)\")",
       "Bash(pip list *)",
       "Bash(pip install *)",
-      "Bash(python -c \"import insightface; import os; print\\(os.path.dirname\\(insightface.__file__\\)\\)\")"
+      "Bash(python -c \"import insightface; import os; print\\(os.path.dirname\\(insightface.__file__\\)\\)\")",
+      "Bash(sqlite3 *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

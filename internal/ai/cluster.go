@@ -30,6 +30,13 @@ func ClusterFaces(faces []FaceEmbedding, eps float64, minPts int) DBSCANResult {
 		expandCluster(faces, result, visited, i, neighbours, clusterID, eps, minPts)
 		clusterID++
 	}
+	// Promote isolated noise faces to singleton clusters so no face is lost.
+	for _, f := range faces {
+		if result[f.ID] == -1 {
+			result[f.ID] = clusterID
+			clusterID++
+		}
+	}
 	return result
 }
 
