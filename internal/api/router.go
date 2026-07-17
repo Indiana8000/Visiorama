@@ -37,7 +37,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	cvh := &convertHandler{cfg: cfg, store: store, cache: imgCache}
 	mux.HandleFunc("GET /api/media/{mediaId}/convert", cvh.serve)
 
-	tch := &transcodeHandler{store: store, runner: tcRunner}
+	tch := &transcodeHandler{cfg: cfg, store: store, runner: tcRunner}
 	mux.HandleFunc("POST /api/media/{mediaId}/transcode", tch.trigger)
 	mux.HandleFunc("GET /api/transcode-jobs/{jobId}", tch.getStatus)
 	mux.HandleFunc("GET /api/media/{mediaId}/transcode/stream", tch.stream)

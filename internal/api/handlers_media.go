@@ -104,8 +104,7 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mediaRepo2 := repositories.NewMediaRepo(h.store.DB())
-	thumbReady, _ := mediaRepo2.GetThumbReady(id)
+	thumbReady, _ := mediaRepo.GetThumbReady(id)
 
 	if !thumbReady {
 		// Acquire semaphore slot — limits concurrent foreground thumbnail generation
@@ -148,7 +147,7 @@ func (h *mediaHandler) getThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	// Mark ready in DB so the warmer skips this item
 	if !thumbReady {
-		_ = mediaRepo2.SetThumbReady(id, true)
+		_ = mediaRepo.SetThumbReady(id, true)
 	}
 
 	f, err := os.Open(cachePath)

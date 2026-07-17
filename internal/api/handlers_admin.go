@@ -1,9 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index"
@@ -15,7 +18,26 @@ type adminHandler struct {
 	store *index.Store
 }
 
+// safeCacheDir returns an error if dir is empty, relative, or suspiciously short (e.g. "/" or "C:\").
+func safeCacheDir(dir string) error {
+	abs := filepath.Clean(dir)
+	if !filepath.IsAbs(abs) {
+		return fmt.Errorf("thumbnails.cacheDir must be absolute, got %q", dir)
+	}
+	// Reject root or single-segment paths like "/tmp" on Linux or "C:\" on Windows.
+	parent := filepath.Dir(abs)
+	if parent == abs || strings.Count(filepath.ToSlash(abs), "/") < 2 {
+		return fmt.Errorf("thumbnails.cacheDir %q is too close to filesystem root", dir)
+	}
+	return nil
+}
+
 func (h *adminHandler) resetThumbs(w http.ResponseWriter, r *http.Request) {
+	if err := safeCacheDir(h.cfg.Thumbnails.CacheDir); err != nil {
+		slog.Error("reset_thumbs: unsafe cacheDir", "err", err)
+		http.Error(w, "server misconfiguration: unsafe cache directory", http.StatusInternalServerError)
+		return
+	}
 	// Delete all cached thumbnail files
 	if err := os.RemoveAll(h.cfg.Thumbnails.CacheDir); err != nil {
 		slog.Error("reset_thumbs: remove cache dir", "err", err)

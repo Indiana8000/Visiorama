@@ -63,8 +63,8 @@ CREATE INDEX IF NOT EXISTS idx_albums_parent  ON albums(parent_album_id);
 
 `
 
-// alterations are run after schema creation; "duplicate column" errors are ignored.
-var alterations = []string{
+// simpleAlterations are run after schema creation; "duplicate column" errors are ignored.
+var simpleAlterations = []string{
 	`ALTER TABLE albums ADD COLUMN dir_mtime_ns INTEGER`,
 	`ALTER TABLE media ADD COLUMN thumb_ready INTEGER NOT NULL DEFAULT 0`,
 	`CREATE TABLE IF NOT EXISTS transcode_jobs (
@@ -77,8 +77,12 @@ var alterations = []string{
 		finished_at TEXT
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_transcode_jobs_media_id ON transcode_jobs(media_id)`,
-	// Extend scan_jobs.mode to allow 'orphan'.
-	// SQLite cannot ALTER a CHECK constraint, so recreate the table.
+}
+
+// scanJobsRecreation extends scan_jobs.mode to allow 'orphan'.
+// SQLite cannot ALTER a CHECK constraint, so the table is recreated.
+// These three statements must run atomically.
+var scanJobsRecreation = []string{
 	`CREATE TABLE IF NOT EXISTS scan_jobs_new (
 		id              TEXT    PRIMARY KEY,
 		mode            TEXT    NOT NULL CHECK(mode IN ('full','quick','orphan')),
@@ -100,13 +104,38 @@ func Migrate(s *Store) error {
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
-	for _, stmt := range alterations {
+	for _, stmt := range simpleAlterations {
 		if _, err := s.db.Exec(stmt); err != nil {
-			// SQLite error text for duplicate column: "duplicate column name"
 			if !strings.Contains(err.Error(), "duplicate column") {
 				return fmt.Errorf("alter: %w", err)
 			}
 		}
+	}
+	if err := migrateScanJobsAtomic(s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// migrateScanJobsAtomic runs the scan_jobs table recreation in a single transaction
+// so a crash between DROP and RENAME cannot leave the database without the table.
+func migrateScanJobsAtomic(s *Store) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("migration tx begin: %w", err)
+	}
+	for _, stmt := range scanJobsRecreation {
+		if _, err := tx.Exec(stmt); err != nil {
+			_ = tx.Rollback()
+			// "already exists" means this migration already completed successfully.
+			if strings.Contains(err.Error(), "already exists") || strings.Contains(err.Error(), "no such table") {
+				return nil
+			}
+			return fmt.Errorf("migration tx: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("migration tx commit: %w", err)
 	}
 	return nil
 }

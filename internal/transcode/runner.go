@@ -92,19 +92,25 @@ func (r *Runner) process(jobID string) {
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	_ = repo.UpdateStatus(jobID, "running", nil, nil, nil)
+	if err := repo.UpdateStatus(jobID, "running", nil, nil, nil); err != nil {
+		slog.Warn("transcode: failed to persist running status", "jobID", jobID, "err", err)
+	}
 
 	m, err := mediaRepo.GetByID(job.MediaID)
 	if err != nil || m == nil {
 		errMsg := "media not found"
-		_ = repo.UpdateStatus(jobID, "failed", nil, &errMsg, &now)
+		if err := repo.UpdateStatus(jobID, "failed", nil, &errMsg, &now); err != nil {
+			slog.Warn("transcode: failed to persist failed status", "jobID", jobID, "err", err)
+		}
 		return
 	}
 
 	srcPath, err := util.SafeJoin(r.cfg.Library.RootPath, m.RelativePath)
 	if err != nil {
 		errMsg := "invalid media path"
-		_ = repo.UpdateStatus(jobID, "failed", nil, &errMsg, &now)
+		if err := repo.UpdateStatus(jobID, "failed", nil, &errMsg, &now); err != nil {
+			slog.Warn("transcode: failed to persist failed status", "jobID", jobID, "err", err)
+		}
 		return
 	}
 
@@ -114,7 +120,9 @@ func (r *Runner) process(jobID string) {
 	}
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		errMsg := fmt.Sprintf("mkdir: %v", err)
-		_ = repo.UpdateStatus(jobID, "failed", nil, &errMsg, &now)
+		if err := repo.UpdateStatus(jobID, "failed", nil, &errMsg, &now); err != nil {
+			slog.Warn("transcode: failed to persist failed status", "jobID", jobID, "err", err)
+		}
 		return
 	}
 
@@ -137,11 +145,15 @@ func (r *Runner) process(jobID string) {
 	if err != nil {
 		errMsg := fmt.Sprintf("ffmpeg: %v — %s", err, string(out))
 		slog.Warn("transcode failed", "jobID", jobID, "err", errMsg)
-		_ = repo.UpdateStatus(jobID, "failed", nil, &errMsg, &finAt)
+		if err := repo.UpdateStatus(jobID, "failed", nil, &errMsg, &finAt); err != nil {
+			slog.Warn("transcode: failed to persist failed status", "jobID", jobID, "err", err)
+		}
 		return
 	}
 
-	_ = repo.UpdateStatus(jobID, "success", &outPath, nil, &finAt)
+	if err := repo.UpdateStatus(jobID, "success", &outPath, nil, &finAt); err != nil {
+		slog.Warn("transcode: failed to persist success status", "jobID", jobID, "err", err)
+	}
 	slog.Info("transcode complete", "jobID", jobID, "out", outPath)
 }
 

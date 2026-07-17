@@ -3,14 +3,18 @@ package api
 import (
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/transcode"
 )
 
 type transcodeHandler struct {
+	cfg    *app.Config
 	store  *index.Store
 	runner *transcode.Runner
 }
@@ -71,7 +75,16 @@ func (h *transcodeHandler) stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f, err := os.Open(*job.OutputPath)
+	// Verify OutputPath is under the configured transcode cache dir to prevent
+	// path traversal if a corrupted DB row contains an arbitrary path.
+	outputPath := filepath.Clean(*job.OutputPath)
+	cacheDir := filepath.Clean(h.cfg.Transcode.CacheDir)
+	if !strings.HasPrefix(outputPath, cacheDir+string(filepath.Separator)) {
+		notFound(w)
+		return
+	}
+
+	f, err := os.Open(outputPath)
 	if err != nil {
 		notFound(w)
 		return

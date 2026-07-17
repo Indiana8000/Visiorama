@@ -362,7 +362,16 @@ async function startTranscode() {
 
 function pollTranscode() {
   clearInterval(transcodePoller)
+  let retries = 0
+  const MAX_RETRIES = 150 // 5 minutes at 2s interval
   transcodePoller = setInterval(async () => {
+    retries++
+    if (retries > MAX_RETRIES) {
+      transcodeStatus.value = 'failed'
+      transcodeErrMsg.value = 'Timed out waiting for transcode'
+      clearInterval(transcodePoller)
+      return
+    }
     try {
       const job = await api.getTranscodeStatus(transcodeJobId.value)
       transcodeStatus.value = job.status
@@ -557,6 +566,7 @@ function slideshowAdvance() {
 
 // --- Load ---
 async function load(id) {
+  if (!Number.isFinite(id) || id <= 0) return
   resetTranscodeState()
   resetZoom()
   await store.fetchMediaMetadata(id)

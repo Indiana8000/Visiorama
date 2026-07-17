@@ -20,7 +20,16 @@
       "Bash(npm install *)",
       "Bash(go test *)",
       "Bash(go vet *)",
-      "Bash(pkill -f \"vite --port 5173\")"
+      "Bash(pkill -f \"vite --port 5173\")",
+      "Bash(cat)",
+      "Bash(bash /tmp/analyze.sh)",
+      "Bash(bash /tmp/check_races.sh)",
+      "Bash(bash /tmp/detailed_check.sh)",
+      "Bash(bash /tmp/ctx_check.sh)",
+      "Bash(bash /tmp/race_verify.sh)",
+      "Bash(bash /tmp/error_check.sh)",
+      "Bash(bash /tmp/queue_check.sh)",
+      "Bash(bash /tmp/resource_check.sh)"
     ]
   }
 }

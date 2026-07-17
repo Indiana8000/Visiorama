@@ -32,7 +32,9 @@ func NewRunner(cfg *app.Config, store *index.Store) *Runner {
 
 // SetWarmer registers the thumb warmer so the runner can suspend it during scans.
 func (r *Runner) SetWarmer(w WarmerSuspender) {
+	r.mu.Lock()
 	r.warmer = w
+	r.mu.Unlock()
 }
 
 func (r *Runner) IsRunning() bool {
@@ -55,18 +57,25 @@ func (r *Runner) TriggerAsync(scanID, mode, albumPath string) error {
 
 	scanRepo := repositories.NewScanRepo(r.store.DB())
 	startedAt := time.Now().UTC().Format(time.RFC3339)
-	_ = scanRepo.UpdateStatus(scanID, "running", &startedAt, nil)
+	if err := scanRepo.UpdateStatus(scanID, "running", &startedAt, nil); err != nil {
+		slog.Warn("scan: failed to persist running status", "scanId", scanID, "err", err)
+	}
+
+	// Capture warmer under lock so the goroutine never races on r.warmer.
+	r.mu.Lock()
+	warmer := r.warmer
+	r.mu.Unlock()
 
 	go func() {
-		if r.warmer != nil {
-			r.warmer.Suspend()
+		if warmer != nil {
+			warmer.Suspend()
 		}
 		defer func() {
 			r.mu.Lock()
 			r.busy = false
 			r.mu.Unlock()
-			if r.warmer != nil {
-				r.warmer.Resume()
+			if warmer != nil {
+				warmer.Resume()
 			}
 		}()
 
@@ -102,15 +111,19 @@ func (r *Runner) TriggerAsync(scanID, mode, albumPath string) error {
 		}
 
 		finishedAt := time.Now().UTC().Format(time.RFC3339)
-		_ = scanRepo.UpdateStatus(scanID, status, &startedAt, &finishedAt)
+		if err := scanRepo.UpdateStatus(scanID, status, &startedAt, &finishedAt); err != nil {
+			slog.Warn("scan: failed to persist final status", "scanId", scanID, "err", err)
+		}
 
 		if stats != nil {
-			_ = scanRepo.UpdateCounters(scanID,
+			if err := scanRepo.UpdateCounters(scanID,
 				int(stats.Scanned.Load()),
 				int(stats.Indexed.Load()),
 				int(stats.Skipped.Load()),
 				int(stats.ErrCount.Load()),
-				fallback)
+				fallback); err != nil {
+				slog.Warn("scan: failed to persist counters", "scanId", scanID, "err", err)
+			}
 		}
 	}()
 

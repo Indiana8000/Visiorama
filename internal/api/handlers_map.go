@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,16 @@ import (
 
 const openFreeMapBase  = "https://tiles.openfreemap.org"
 const openFreeMapStyle = openFreeMapBase + "/styles/liberty"
+
+// hostRe accepts host:port values — prevents injecting path separators into URLs built from r.Host.
+var hostRe = regexp.MustCompile(`^[a-zA-Z0-9\.\-\[\]:]+$`)
+
+func safeHost(host string) string {
+	if hostRe.MatchString(host) {
+		return host
+	}
+	return "localhost"
+}
 
 type mapHandler struct {
 	store     *index.Store
@@ -56,7 +67,7 @@ func (h *mapHandler) getStyle(w http.ResponseWriter, r *http.Request) {
 	if fwdProto := r.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
 		scheme = fwdProto
 	}
-	selfBase := scheme + "://" + r.Host + "/api/map/proxy"
+	selfBase := scheme + "://" + safeHost(r.Host) + "/api/map/proxy"
 	body := []byte(strings.ReplaceAll(string(raw), openFreeMapBase, selfBase))
 
 	w.Header().Set("Content-Type", "application/json")
@@ -75,7 +86,11 @@ func (h *mapHandler) proxyUpstream(w http.ResponseWriter, r *http.Request) {
 		target += "?" + r.URL.RawQuery
 	}
 
-	req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+	if err != nil {
+		http.Error(w, "bad proxy path", http.StatusBadRequest)
+		return
+	}
 	req.Header.Set("Accept-Encoding", "identity") // prevent Go transport auto-decompression
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
@@ -106,7 +121,7 @@ func (h *mapHandler) proxyUpstream(w http.ResponseWriter, r *http.Request) {
 		if fwdProto := r.Header.Get("X-Forwarded-Proto"); fwdProto != "" {
 			scheme = fwdProto
 		}
-		selfBase := scheme + "://" + r.Host + "/api/map/proxy"
+		selfBase := scheme + "://" + safeHost(r.Host) + "/api/map/proxy"
 		rewritten := strings.ReplaceAll(string(body), openFreeMapBase, selfBase)
 		w.WriteHeader(resp.StatusCode)
 		_, _ = w.Write([]byte(rewritten))
