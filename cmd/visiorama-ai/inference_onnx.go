@@ -334,18 +334,3 @@ func clamp32(v, lo, hi float32) float32 {
 	return v
 }
 
-// runFacePipeline runs SCRFD face detection followed by ArcFace embedding.
-//
-// TODO (Epic I-3): replace stub with real inference.
-func runFacePipeline(_ context.Context, detectorPath, embeddingPath, imagePath string) ([]ai.Face, error) {
-	if !fileExists(detectorPath) {
-		return nil, fmt.Errorf("detector model not found: %s", detectorPath)
-	}
-	if !fileExists(embeddingPath) {
-		return nil, fmt.Errorf("embedding model not found: %s", embeddingPath)
-	}
-	if !fileExists(imagePath) {
-		return nil, fmt.Errorf("image not found: %s", imagePath)
-	}
-	return []ai.Face{}, nil
-}

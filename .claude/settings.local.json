@@ -53,7 +53,12 @@
       "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.22.0/onnxruntime_c_api.h\")",
       "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.23.0/onnxruntime_c_api.h\")",
       "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.24.0/onnxruntime_c_api.h\")",
-      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.25.0/onnxruntime_c_api.h\")"
+      "Bash(grep \"ORT_API_VERSION\" \"$\\(go env GOPATH\\)/pkg/mod/github.com/yalue/onnxruntime_go@v1.25.0/onnxruntime_c_api.h\")",
+      "Bash(python -c \"import onnx; print\\('onnx ok', onnx.__version__\\)\")",
+      "Bash(python -c \"import onnxruntime as ort; print\\('ort ok', ort.__version__\\)\")",
+      "Bash(pip list *)",
+      "Bash(pip install *)",
+      "Bash(python -c \"import insightface; import os; print\\(os.path.dirname\\(insightface.__file__\\)\\)\")"
     ]
   }
 }
