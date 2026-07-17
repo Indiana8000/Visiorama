@@ -15,6 +15,7 @@ import (
 	ort "github.com/yalue/onnxruntime_go"
 
 	"github.com/Indiana8000/visiorama/internal/ai"
+	"github.com/Indiana8000/visiorama/internal/convert"
 )
 
 // YOLOv8n constants — model input is 640x640, output shape [1, 84, 8400].
@@ -146,8 +147,7 @@ func runYOLO(ctx context.Context, modelPath, imagePath string) ([]ai.Label, erro
 		return nil, err
 	}
 
-	// imaging.Open handles JPEG, PNG, GIF, TIFF, BMP and applies EXIF rotation.
-	img, err := imaging.Open(imagePath, imaging.AutoOrientation(true))
+	img, err := convert.OpenImage(imagePath)
 	if err != nil {
 		return nil, fmt.Errorf("open image: %w", err)
 	}

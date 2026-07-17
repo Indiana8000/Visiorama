@@ -18,6 +18,7 @@ import (
 	ort "github.com/yalue/onnxruntime_go"
 
 	"github.com/Indiana8000/visiorama/internal/ai"
+	"github.com/Indiana8000/visiorama/internal/convert"
 )
 
 // ── SCRFD constants ────────────────────────────────────────────────────────────
@@ -216,7 +217,7 @@ func runFacePipeline(ctx context.Context, detectorPath, embeddingPath, imagePath
 		return nil, err
 	}
 
-	img, err := imaging.Open(imagePath, imaging.AutoOrientation(true))
+	img, err := convert.OpenImage(imagePath)
 	if err != nil {
 		return nil, fmt.Errorf("open image: %w", err)
 	}

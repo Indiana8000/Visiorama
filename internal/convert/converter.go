@@ -27,6 +27,13 @@ func ToJPEG(srcPath string, maxDim int) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// OpenImage decodes any supported image format (JPEG, PNG, TIFF, HEIC, …)
+// using Go's native decoder first, then ImageMagick, then FFmpeg as fallbacks.
+// EXIF orientation is applied automatically.
+func OpenImage(srcPath string) (image.Image, error) {
+	return decode(srcPath)
+}
+
 func decode(srcPath string) (image.Image, error) {
 	// Try Go native first (fast path for common formats)
 	if img, err := imaging.Open(srcPath, imaging.AutoOrientation(true)); err == nil {
