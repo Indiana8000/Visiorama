@@ -13,7 +13,9 @@
           </template>
         </span>
         <div class="meta-buttons">
-          <button v-if="gpsCount > 0" class="btn-map" @click="openMap">🗺 Map ({{ gpsCount }})</button>
+          <button v-if="gpsCount > 0" class="btn-map" @click="openMap">
+            🗺 Map<span class="persons-badge">{{ gpsCount }}</span>
+          </button>
           <button class="btn-persons" @click="$router.push('/persons')">
             👥 Persons<span v-if="pendingClusters > 0" class="persons-badge">{{ pendingClusters }}</span>
           </button>
@@ -232,6 +234,9 @@ watch(() => store.currentAlbum, (album) => {
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 .btn-map:hover { background: #45475a; }

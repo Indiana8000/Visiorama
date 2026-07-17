@@ -468,14 +468,22 @@ func alignFace(src image.Image, kps [5][2]float32, size int) *image.NRGBA {
 	srcNRGBA := imaging.Clone(src)
 
 	// Inverse warp: for each dst pixel find src pixel.
-	// Forward: dst = A*src + t  where A = [[a,-b],[b,a]]
-	// Inverse: src = A^T*(dst - t)
+	// Forward: dst_p = A * src_p + t,  A = [[a,-b],[b,a]]
+	// Inverse: src_p = A^{-1} * (dst_p - t)
+	//   A^{-1} = (1/det) * [[a,b],[-b,a]],  det = a²+b²
+	fa := float64(a)
+	fb := float64(b)
+	det := fa*fa + fb*fb
+	if det < 1e-10 {
+		det = 1
+	}
+	inv := 1.0 / det
 	for dy := 0; dy < size; dy++ {
 		for dx := 0; dx < size; dx++ {
-			// Apply inverse transform
-			fx := float64(a)*(float64(dx)-float64(tx)) + float64(b)*(float64(dy)-float64(ty))
-			fy := -float64(b)*(float64(dx)-float64(tx)) + float64(a)*(float64(dy)-float64(ty))
-			// Bilinear sample from src
+			qx := float64(dx) - float64(tx)
+			qy := float64(dy) - float64(ty)
+			fx := inv * (fa*qx + fb*qy)
+			fy := inv * (-fb*qx + fa*qy)
 			c := bilinearSample(srcNRGBA, fx, fy)
 			dst.SetNRGBA(dx, dy, c)
 		}
