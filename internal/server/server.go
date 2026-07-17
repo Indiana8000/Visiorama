@@ -103,6 +103,15 @@ func Run(cfg *app.Config) error {
 		return fmt.Errorf("create transcode cache dir: %w", err)
 	}
 
+	// Resolve AI model/face-cache dirs so serveCrop can find files written by the sidecar.
+	dbDir := filepath.Dir(cfg.Database.SQLitePath)
+	if cfg.AI.ModelDir == "" {
+		cfg.AI.ModelDir = filepath.Join(dbDir, "models")
+	}
+	if cfg.AI.FaceCacheDir == "" {
+		cfg.AI.FaceCacheDir = filepath.Join(dbDir, "crops")
+	}
+
 	if thumbs.ImageMagickAvailable() {
 		slog.Info("imagemagick found", "path", thumbs.ImageMagickPath())
 	} else {

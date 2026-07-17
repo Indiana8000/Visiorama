@@ -54,13 +54,14 @@ var models = []modelSpec{
 }
 
 type modelManager struct {
-	dir    string
-	mu     sync.RWMutex
-	loaded []string
+	dir      string
+	cropsDir string
+	mu       sync.RWMutex
+	loaded   []string
 }
 
-func newModelManager(dir string) *modelManager {
-	return &modelManager{dir: dir}
+func newModelManager(dir, cropsDir string) *modelManager {
+	return &modelManager{dir: dir, cropsDir: cropsDir}
 }
 
 // EnsureModels downloads any missing models and verifies checksums.
@@ -132,6 +133,7 @@ func (m *modelManager) Analyze(ctx context.Context, req ai.AnalyzeRequest) (*ai.
 			filepath.Join(m.dir, "scrfd_10g_bnkps.onnx"),
 			filepath.Join(m.dir, "glintr100.onnx"),
 			req.FilePath,
+			m.cropsDir,
 		)
 		if err != nil {
 			slog.Warn("face pipeline failed", "mediaId", req.MediaID, "err", err)

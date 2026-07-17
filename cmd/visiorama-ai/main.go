@@ -22,6 +22,7 @@ var version = "dev"
 func main() {
 	socketPath := flag.String("socket", "", "Unix socket path (default: /tmp/visiorama-ai.sock)")
 	modelDir   := flag.String("models", "", "Directory for ONNX model storage")
+	cropsDir   := flag.String("crops", "", "Directory for face crop JPEGs")
 	workers    := flag.Int("workers", 0, "Inference worker count (0 = auto)")
 	flag.Parse()
 
@@ -32,6 +33,9 @@ func main() {
 		home, _ := os.UserCacheDir()
 		*modelDir = filepath.Join(home, "visiorama", "models")
 	}
+	if *cropsDir == "" {
+		*cropsDir = filepath.Join(filepath.Dir(*modelDir), "crops")
+	}
 	if *workers <= 0 {
 		*workers = 2
 	}
@@ -41,14 +45,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	mgr := newModelManager(*modelDir)
+	mgr := newModelManager(*modelDir, *cropsDir)
 	if err := mgr.EnsureModels(context.Background()); err != nil {
 		slog.Error("model setup failed", "err", err)
 		os.Exit(1)
 	}
 
+	if err := os.MkdirAll(*cropsDir, 0755); err != nil {
+		slog.Error("create crops dir", "err", err)
+		os.Exit(1)
+	}
+
 	srv := &server{
 		modelDir: *modelDir,
+		cropsDir: *cropsDir,
 		workers:  *workers,
 		mgr:      mgr,
 	}
@@ -93,6 +103,7 @@ func main() {
 
 type server struct {
 	modelDir string
+	cropsDir string
 	workers  int
 	mgr      *modelManager
 }

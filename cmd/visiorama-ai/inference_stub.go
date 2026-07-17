@@ -23,7 +23,7 @@ func runYOLO(_ context.Context, modelPath, imagePath string) ([]ai.Label, error)
 	return nil, fmt.Errorf("visiorama-ai built without CGO: ONNX inference unavailable")
 }
 
-func runFacePipeline(_ context.Context, detectorPath, embeddingPath, imagePath string) ([]ai.Face, error) {
+func runFacePipeline(_ context.Context, detectorPath, embeddingPath, imagePath, _ string) ([]ai.Face, error) {
 	if !fileExists(detectorPath) {
 		return nil, fmt.Errorf("detector model not found: %s", detectorPath)
 	}

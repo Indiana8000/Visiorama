@@ -197,7 +197,7 @@ type faceDetection struct {
 
 // runFacePipeline replaces the I-3 stub.
 // Detects faces with SCRFD, aligns crops, embeds with ArcFace.
-func runFacePipeline(ctx context.Context, detectorPath, embeddingPath, imagePath string) ([]ai.Face, error) {
+func runFacePipeline(ctx context.Context, detectorPath, embeddingPath, imagePath, cropsDir string) ([]ai.Face, error) {
 	if !fileExists(detectorPath) {
 		return nil, fmt.Errorf("detector model not found: %s", detectorPath)
 	}
@@ -247,7 +247,7 @@ func runFacePipeline(ctx context.Context, detectorPath, embeddingPath, imagePath
 	}
 
 	// --- ArcFace embedding per face ---
-	cropDir := filepath.Join(filepath.Dir(embeddingPath), "..", "crops")
+	cropDir := cropsDir
 	_ = os.MkdirAll(cropDir, 0755)
 
 	var faces []ai.Face

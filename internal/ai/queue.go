@@ -242,11 +242,14 @@ func (q *QueueRunner) tryStartSidecar(ctx context.Context) *Client {
 		return nil
 	}
 
+	cropsDir := q.cfg.AI.FaceCacheDir
+
 	slog.Info("ai queue: starting sidecar", "binary", binPath, "socket", socketPath)
-	cmd := exec.CommandContext(ctx, binPath,
-		"--socket", socketPath,
-		"--models", modelDir,
-	)
+	args := []string{"--socket", socketPath, "--models", modelDir}
+	if cropsDir != "" {
+		args = append(args, "--crops", cropsDir)
+	}
+	cmd := exec.CommandContext(ctx, binPath, args...)
 	if err := cmd.Start(); err != nil {
 		slog.Warn("ai queue: sidecar start failed", "err", err)
 		return nil
