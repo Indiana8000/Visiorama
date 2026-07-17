@@ -3,18 +3,18 @@
     <span v-if="statusMsg" class="scan-status">{{ statusMsg }}</span>
     <button
       class="scan-btn scan-btn--reanalyze"
-      :disabled="reanalyzing || isRunning || isQueued"
+      :disabled="anyActive"
       title="Re-analyze AI for current album"
       @click="handleReanalyze"
     >Re-analyze</button>
     <button
       class="scan-btn"
-      :disabled="isRunning || isQueued"
+      :disabled="anyActive"
       @click="handleScan('quick')"
     >Quick Scan</button>
     <button
       class="scan-btn scan-btn--full"
-      :disabled="isRunning || isQueued"
+      :disabled="anyActive"
       @click="handleScan('full')"
       title="Re-index entire library"
     >Full</button>
@@ -34,9 +34,18 @@ const POLL_INTERVAL_MS = 2000
 const job = ref(null)
 const pollTimer = ref(null)
 const errorMsg = ref(null)
+const reanalyzing = ref(false)
+const reanalyzeQueued = ref(false)
 const elapsedSec = ref(0)
 let elapsedTimer = null
 let scanStartMs = 0
+
+const status = computed(() => job.value?.status ?? 'idle')
+const isQueued = computed(() => status.value === 'queued')
+const isRunning = computed(() => status.value === 'running')
+const isDone = computed(() => status.value === 'success')
+const isFailed = computed(() => status.value === 'failed')
+const anyActive = computed(() => reanalyzing.value || isRunning.value || isQueued.value)
 
 function startElapsed() {
   stopElapsed()
@@ -55,18 +64,10 @@ function fmtElapsed(s) {
   return `${Math.floor(s / 60)}m ${s % 60}s`
 }
 
-const status = computed(() => job.value?.status ?? 'idle')
-const isQueued = computed(() => status.value === 'queued')
-const isRunning = computed(() => status.value === 'running')
-const isDone = computed(() => status.value === 'success')
-const isFailed = computed(() => status.value === 'failed')
-
-const reanalyzing = ref(false)
-const reanalyzeStatus = ref(null) // null | 'queued' | 'error'
-
 const statusMsg = computed(() => {
   if (errorMsg.value) return errorMsg.value
-  if (reanalyzeStatus.value === 'queued') return 'Re-analyze queued'
+  if (reanalyzing.value) return 'Queuing…'
+  if (reanalyzeQueued.value) return '✓ Re-analyze queued'
   if (!job.value) return null
   const mode = job.value.mode === 'full' ? 'full' : 'quick'
   const t = elapsedSec.value > 0 ? ` (${fmtElapsed(elapsedSec.value)})` : ''
@@ -103,7 +104,6 @@ async function poll(scanId) {
       stopPolling()
       stopElapsed()
       emit('done', updated)
-      setTimeout(() => { job.value = null }, 5000)
     }
   } catch (e) {
     stopPolling()
@@ -130,13 +130,12 @@ onUnmounted(() => {
 })
 
 async function handleReanalyze() {
-  reanalyzing.value = true
-  reanalyzeStatus.value = null
   errorMsg.value = null
+  reanalyzeQueued.value = false
+  reanalyzing.value = true
   try {
     await api.reanalyzeAlbum(props.albumPath)
-    reanalyzeStatus.value = 'queued'
-    setTimeout(() => { reanalyzeStatus.value = null }, 3000)
+    reanalyzeQueued.value = true
   } catch (e) {
     errorMsg.value = 'Re-analyze failed: ' + e.message
   } finally {
@@ -146,6 +145,7 @@ async function handleReanalyze() {
 
 async function handleScan(mode) {
   errorMsg.value = null
+  reanalyzeQueued.value = false
   try {
     const newJob = await api.triggerScan(mode, props.albumPath)
     job.value = newJob
