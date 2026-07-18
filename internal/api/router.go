@@ -20,7 +20,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 		runner.SetAIQueue(aiQueue)
 	}
 
-	ah := &albumsHandler{store: store}
+	ah := &albumsHandler{cfg: cfg, store: store, runner: runner}
 	mux.HandleFunc("GET /api/albums/root", ah.getRoot)
 	mux.HandleFunc("GET /api/albums/by-path", ah.getByPath)
 	mux.HandleFunc("POST /api/albums/by-media-ids", ah.albumsByMediaIDs)

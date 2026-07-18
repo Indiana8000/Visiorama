@@ -4,16 +4,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"time"
 
+	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/util"
 )
 
 type albumsHandler struct {
-	store *index.Store
+	cfg    *app.Config
+	store  *index.Store
+	runner orphanTrigger
+}
+
+func (h *albumsHandler) maybeStartOrphanScan() {
+	if h.runner == nil || h.runner.IsRunning() {
+		return
+	}
+	scanRepo := repositories.NewScanRepo(h.store.DB())
+	scanID := fmt.Sprintf("scan-orphan-%d", time.Now().UnixMilli())
+	_ = scanRepo.Create(&repositories.ScanJob{ID: scanID, Mode: "orphan", Status: "queued"})
+	_ = h.runner.TriggerAsync(scanID, "orphan", "")
 }
 
 func (h *albumsHandler) getRoot(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +97,18 @@ func (h *albumsHandler) getByPath(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *albumsHandler) buildAndWrite(w http.ResponseWriter, albumRepo *repositories.AlbumsRepo, album *repositories.Album, page, pageSize int) {
+	// Non-root album: check the directory still exists on disk.
+	if album.RelativePath != "" && h.cfg != nil {
+		absPath := filepath.Join(h.cfg.Library.RootPath, filepath.FromSlash(album.RelativePath))
+		if _, err := os.Stat(absPath); os.IsNotExist(err) {
+			if h.runner != nil {
+				h.maybeStartOrphanScan()
+			}
+			notFound(w)
+			return
+		}
+	}
+
 	mediaRepo := repositories.NewMediaRepo(h.store.DB())
 
 	// breadcrumbs

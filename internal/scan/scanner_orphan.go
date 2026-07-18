@@ -138,5 +138,24 @@ func (s *OrphanScanner) Run(ctx context.Context, scanID string) (*Stats, error) 
 		_ = albumRepo.UpdateCounts(rootAlbum.ID, rootDirect, rootRecursive, len(rootChildren))
 	}
 
+	// Remove albums whose directories no longer exist on disk (skip root).
+	allAlbums, err := albumRepo.ListAll()
+	if err == nil {
+		for _, a := range allAlbums {
+			if a.RelativePath == "" {
+				continue
+			}
+			absDir := filepath.Join(root, filepath.FromSlash(a.RelativePath))
+			if _, statErr := os.Stat(absDir); os.IsNotExist(statErr) {
+				if delErr := albumRepo.DeleteByID(a.ID); delErr != nil {
+					slog.Warn("orphan scan: delete album failed", "path", a.RelativePath, "err", delErr)
+				} else {
+					slog.Info("orphan scan: removed deleted album", "path", a.RelativePath)
+					stats.Indexed.Add(1)
+				}
+			}
+		}
+	}
+
 	return stats, nil
 }

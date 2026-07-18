@@ -60,10 +60,14 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 		return stats, true, err
 	}
 	if len(delta.DeletedDirs) > 0 {
-		slog.Info("quick scan: deleted dirs detected, falling back to full scan",
+		if s.cfg.Scan.QuickFallbackToFull {
+			slog.Info("quick scan: deleted dirs detected, falling back to full scan",
+				"scanID", scanID, "deletedDirs", delta.DeletedDirs)
+			stats, err := NewFullScanner(s.cfg, s.store).RunWithProgress(ctx, scanID, albumPath, onProgress)
+			return stats, true, err
+		}
+		slog.Info("quick scan: deleted dirs detected, skipping fallback (quickFallbackToFull=false)",
 			"scanID", scanID, "deletedDirs", delta.DeletedDirs)
-		stats, err := NewFullScanner(s.cfg, s.store).RunWithProgress(ctx, scanID, albumPath, onProgress)
-		return stats, true, err
 	}
 
 	// --- Step 3: Nothing changed — nothing to do ---

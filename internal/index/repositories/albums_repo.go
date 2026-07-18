@@ -178,6 +178,28 @@ func (r *AlbumsRepo) DeleteByPath(relPath string) error {
 	return err
 }
 
+// ListAll returns all albums including root.
+func (r *AlbumsRepo) ListAll() ([]Album, error) {
+	rows, err := r.db.Query(`
+		SELECT id, relative_path, name, parent_album_id,
+		       media_count_direct, media_count_recursive, child_album_count
+		FROM albums`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectAlbums(rows)
+}
+
+// DeleteByID removes an album and all its media by album ID.
+func (r *AlbumsRepo) DeleteByID(id int64) error {
+	if _, err := r.db.Exec(`DELETE FROM media WHERE album_id = ?`, id); err != nil {
+		return err
+	}
+	_, err := r.db.Exec(`DELETE FROM albums WHERE id = ?`, id)
+	return err
+}
+
 func (r *AlbumsRepo) CoverMediaID(albumID int64) (*int64, error) {
 	return r.coverMediaIDRecursive(albumID, 0)
 }
