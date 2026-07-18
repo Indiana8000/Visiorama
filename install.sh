@@ -240,60 +240,52 @@ main() {
   if [ ! -f "${CONFIG_DIR}/visiorama.yaml" ]; then
     cat > "${CONFIG_DIR}/visiorama.yaml" <<EOF
 server:
-  host: 0.0.0.0
-  port: 8080
-  memLimitMiB: 0
+  host: 0.0.0.0        # interface to bind; use 127.0.0.1 to restrict to localhost only
+  port: 8080           # TCP port the web UI and API are served on
+  memLimitMiB: 0       # Go heap limit in MiB; 0 = auto (90% of physical/cgroup RAM)
 
 library:
-  rootPath: /mnt/photos
-  includeEmptyAlbums: true
+  rootPath: /mnt/photos      # absolute path to your photo library root (required)
+  includeEmptyAlbums: true   # show albums that contain no directly-scanned media
 
 scan:
-  defaultMode: quick
-  quickFallbackToFull: true
-  ignoreDirMtime: false
-  maxWorkers: 0
+  defaultMode: quick         # scan mode used when triggered from the UI: "quick" or "full"
+  quickFallbackToFull: true  # fall back to full scan when quick scan detects deleted directories
+  ignoreDirMtime: false      # ignore directory mtime for change detection; enable for CIFS/SMB shares
+  maxWorkers: 0              # concurrent media processing workers; 0 = auto (min of CPU count and RAM/512 MiB)
 
 filtering:
-  excludePatterns: [".*", "@eaDir", "Thumbs.db", "#recycle"]
-  allowedImageExtensions: ["jpg", "jpeg", "png", "webp", "gif", "heic", "tif", "tiff", "avif"]
-  allowedVideoExtensions: ["mp4", "mkv", "mov", "webm", "avi", "m4v"]
-  enableMimeSniff: true
+  excludePatterns: [".*", "@eaDir", "Thumbs.db", "#recycle"]            # glob patterns for files/dirs to skip
+  allowedImageExtensions: ["jpg", "jpeg", "png", "webp", "gif", "heic", "tif", "tiff", "avif"]  # image formats to index
+  allowedVideoExtensions: ["mp4", "mkv", "mov", "webm", "avi", "m4v"]  # video formats to index
+  enableMimeSniff: true      # verify file type by magic bytes in addition to extension
 
 thumbnails:
-  cacheDir: ${DATA_DIR}/thumbs
-  sizes: [320, 640]
-  aspectRatioW: 4
-  aspectRatioH: 3
+  cacheDir: ${DATA_DIR}/thumbs  # directory for generated thumbnail files (required)
+  sizes: [320, 640]          # thumbnail widths to generate in pixels; first entry is the default
+  aspectRatioW: 4            # thumbnail crop aspect ratio — width component
+  aspectRatioH: 3            # thumbnail crop aspect ratio — height component
 
 transcode:
-  cacheDir: ${DATA_DIR}/transcodes
-  ttlHours: 48
-  imageMaxDim: 2400
+  cacheDir: ${DATA_DIR}/transcodes  # directory for transcoded video files
+  ttlHours: 48               # delete transcoded files after this many hours (0 = use default 48)
+  imageMaxDim: 2400          # max dimension in pixels for on-demand image conversion to JPEG
 
 limits:
-  largeMediaWarningBytes: 104857600
+  largeMediaWarningBytes: 104857600  # log a warning when a media file exceeds this size (default 100 MiB; 0 = disable)
 
 database:
-  sqlitePath: ${DATA_DIR}/index.db
+  sqlitePath: ${DATA_DIR}/index.db  # path to the SQLite index database file (required)
 
 ai:
-  # Path to visiorama-ai binary. Empty = auto-detect from PATH.
-  binary: ${INSTALL_DIR}/visiorama-ai
-  # Unix socket used to communicate with the sidecar.
-  socketPath: /run/visiorama/visiorama-ai.sock
-  # Directory where ONNX models are downloaded to (~300 MB total).
-  modelDir: ${DATA_DIR}/models
-  # Directory where face crop JPEGs are stored.
-  faceCacheDir: ${DATA_DIR}/crops
-  # Concurrent inference workers (0 = auto).
-  workers: 0
-  # Minimum detection confidence to store a label (0.0–1.0).
-  labelMinConfidence: 0.6
-  # Minimum face bounding-box size in pixels. Smaller faces are ignored.
-  faceMinPixels: 40
-  # Re-queue all media for AI analysis on every full scan.
-  reanalyzeOnFullScan: false
+  binary: ${INSTALL_DIR}/visiorama-ai  # path to visiorama-ai binary; empty = auto-detect from PATH
+  socketPath: /run/visiorama/visiorama-ai.sock  # Unix socket for sidecar communication
+  modelDir: ${DATA_DIR}/models    # directory where ONNX models are stored and downloaded to (~300 MB total)
+  faceCacheDir: ${DATA_DIR}/crops # directory for face crop JPEG thumbnails
+  workers: 0                   # concurrent inference workers inside the sidecar; 0 = auto (min 2)
+  labelMinConfidence: 0.6      # minimum detection confidence to store a label (0.0–1.0)
+  faceMinPixels: 40            # minimum face bounding-box size in pixels; smaller faces are ignored
+  reanalyzeOnFullScan: false   # re-queue all media for AI analysis on every full scan (slow; off by default)
 
 EOF
     echo "  Config written to ${CONFIG_DIR}/visiorama.yaml"
