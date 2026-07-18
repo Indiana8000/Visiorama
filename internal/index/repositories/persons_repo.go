@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"math"
+	"sort"
 )
 
 type Person struct {
@@ -126,7 +127,9 @@ func (r *PersonsRepo) SaveClusterAssignments(assignments map[int64]int) error {
 	defer insStmt.Close()
 
 	for _, faceIDs := range clusters {
-		// Create a new unnamed person for this cluster.
+		// Sort so cover = min face_id (stable across re-clusterings; map iteration is random).
+		sort.Slice(faceIDs, func(i, j int) bool { return faceIDs[i] < faceIDs[j] })
+
 		res, err := tx.Exec(
 			`INSERT INTO ai_persons (name, created_at) VALUES ('', datetime('now'))`)
 		if err != nil {
@@ -134,7 +137,6 @@ func (r *PersonsRepo) SaveClusterAssignments(assignments map[int64]int) error {
 			return err
 		}
 		personID, _ := res.LastInsertId()
-		// Set cover to first face.
 		if _, err := tx.Exec(`UPDATE ai_persons SET cover_face_id = ? WHERE id = ?`,
 			faceIDs[0], personID); err != nil {
 			_ = tx.Rollback()

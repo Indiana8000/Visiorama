@@ -205,7 +205,7 @@
 - `ai.reanalyzeOnFullScan` config flag (default false).
 - AI cleanup: removes orphaned face crops and DB entries.
 - **Open:** `visiorama-ai` version check / outdated binary warning not implemented.
-- **Open:** cover face for cluster chosen from unsorted map iteration — should use min face_id.
+- Cover face = min face_id (sorted before insert; stable across re-clusterings).
 
 ---
 
