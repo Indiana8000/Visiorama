@@ -65,9 +65,8 @@ Acceptable because inference runs as background post-scan queue, not real-time.
   `w600k_mbf.onnx` (~12 MB) — not yet done (URL unconfirmed).
 
 ## Open Items
-- **Model checksums:** SHA256 hashes for SCRFD and ArcFace download URLs not yet populated
-  in `cmd/visiorama-ai/models.go`. Checksums must be added before first public release to
-  prevent tampered downloads.
+- **Model checksums:** ✅ SHA256 hashes populated in `cmd/visiorama-ai/models.go` for all
+  three models (yolov8n, SCRFD, ArcFace).
 - **Model size:** `glintr100.onnx` (~260 MB) should be replaced by `w600k_mbf.onnx` (~12 MB)
   once a stable, versioned download URL is confirmed.
 - **CI build:** `visiorama-ai` CGO binary not yet built in GitHub Actions. Required for

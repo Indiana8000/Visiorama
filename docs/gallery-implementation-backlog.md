@@ -176,7 +176,7 @@
 - Results stored in `ai_faces` table.
 - Min face size configurable (`ai.faceMinPixels`, default 40 px).
 - **Open:** `glintr100.onnx` (~260 MB) should be replaced by `w600k_mbf.onnx` (~12 MB) — see ADR-007.
-- **Open:** model download URLs not pinned with SHA256 checksums yet — see ADR-007.
+- SHA256 checksums populated for all three models.
 
 ### I-4 Analysis queue & scheduler ✅
 - `ai_jobs` table; new/changed media enqueued after scan.

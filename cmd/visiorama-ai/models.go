@@ -29,27 +29,26 @@ type modelSpec struct {
 // NOTE: When real model URLs are confirmed, replace these placeholders.
 var models = []modelSpec{
 	{
-		Name: "yolov8n",
-		File: "yolov8n.onnx",
-		// YOLOv8 nano — 80 COCO classes, ~6MB, CPU-viable
+		Name:   "yolov8n",
+		File:   "yolov8n.onnx",
+		// YOLOv8 nano — 80 COCO classes, ~6 MB, CPU-viable
 		URL:    "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8n.onnx",
-		SHA256: "",
+		SHA256: "b2bc52f40e8e1c532427d5bde3575a5d5b571b739fab2c6df443733ed1589cbd",
 	},
 	{
-		Name: "scrfd",
-		File: "scrfd_10g_bnkps.onnx",
-		// SCRFD-10G face detector — ~16MB, ~5ms/image on CPU
-		// TODO (Epic I-3): confirm final URL before release
+		Name:   "scrfd",
+		File:   "scrfd_10g_bnkps.onnx",
+		// SCRFD-10G face detector — ~16 MB, ~5 ms/image on CPU
 		URL:    "https://huggingface.co/DIAMONIK7777/antelopev2/resolve/main/scrfd_10g_bnkps.onnx",
-		SHA256: "",
+		SHA256: "5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91",
 	},
 	{
-		Name: "arcface",
-		File: "glintr100.onnx",
-		// ArcFace R100 — 512d embeddings, ~260MB
-		// TODO (Epic I-3): replace with lighter w600k_mbf (~12MB) once URL confirmed
+		Name:   "arcface",
+		File:   "glintr100.onnx",
+		// ArcFace R100 — 512d embeddings, ~260 MB
+		// TODO: replace with w600k_mbf.onnx (~12 MB) once a stable versioned URL is available
 		URL:    "https://huggingface.co/DIAMONIK7777/antelopev2/resolve/main/glintr100.onnx",
-		SHA256: "",
+		SHA256: "4ab1d6435d639628a6f3e5008dd4f929edf4c4124b1a7169e1048f9fef534cdf",
 	},
 }
 
