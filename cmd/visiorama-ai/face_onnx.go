@@ -274,7 +274,7 @@ func runFacePipeline(ctx context.Context, detectorPath, embeddingPath, imagePath
 
 		cropPath := filepath.Join(cropDir, fmt.Sprintf("face_%d_%d.jpg",
 			int(d.x1), int(d.y1)))
-		if err := saveCrop(crop, cropPath); err != nil {
+		if err := saveDisplayCrop(img, d.x1, d.y1, d.x2, d.y2, 320, cropPath); err != nil {
 			cropPath = ""
 		}
 
@@ -638,4 +638,51 @@ func saveCrop(img *image.NRGBA, path string) error {
 	}
 	defer f.Close()
 	return jpeg.Encode(f, img, &jpeg.Options{Quality: 90})
+}
+
+// saveDisplayCrop cuts a padded square bbox from the original image, resizes to
+// targetSize×targetSize, and saves as JPEG. The 112×112 ArcFace crop is kept
+// only for inference (in-memory); this provides a higher-resolution display image.
+func saveDisplayCrop(src image.Image, x1, y1, x2, y2 float32, targetSize int, path string) error {
+	bounds := src.Bounds()
+	w := x2 - x1
+	h := y2 - y1
+	// square side = max dimension + 25% padding
+	side := w
+	if h > side {
+		side = h
+	}
+	pad := side * 0.25
+	cx := (x1 + x2) / 2
+	cy := (y1 + y2) / 2
+	half := (side + pad) / 2
+
+	sx0 := int(cx-half + 0.5)
+	sy0 := int(cy-half + 0.5)
+	sx1 := int(cx+half + 0.5)
+	sy1 := int(cy+half + 0.5)
+
+	// clamp to image
+	if sx0 < bounds.Min.X {
+		sx0 = bounds.Min.X
+	}
+	if sy0 < bounds.Min.Y {
+		sy0 = bounds.Min.Y
+	}
+	if sx1 > bounds.Max.X {
+		sx1 = bounds.Max.X
+	}
+	if sy1 > bounds.Max.Y {
+		sy1 = bounds.Max.Y
+	}
+
+	cropped := imaging.Crop(src, image.Rect(sx0, sy0, sx1, sy1))
+	resized := imaging.Resize(cropped, targetSize, targetSize, imaging.Lanczos)
+
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return jpeg.Encode(f, resized, &jpeg.Options{Quality: 85})
 }

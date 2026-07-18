@@ -394,8 +394,8 @@ watch(() => props.personId, (id) => {
 }
 .face-wrap {
   position: relative;
-  width: 72px;
-  height: 72px;
+  width: 120px;
+  height: 120px;
   cursor: pointer;
 }
 .face-wrap:hover .face-crop,
@@ -404,26 +404,26 @@ watch(() => props.personId, (id) => {
   outline-offset: 1px;
 }
 .face-crop {
-  width: 72px;
-  height: 72px;
+  width: 120px;
+  height: 120px;
   object-fit: cover;
   border-radius: 50%;
   border: 2px solid var(--border);
 }
 .face-placeholder {
-  width: 72px;
-  height: 72px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   background: var(--bg3);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  font-size: 48px;
 }
 .face-remove {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -2px;
+  right: -2px;
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -439,14 +439,14 @@ watch(() => props.personId, (id) => {
   line-height: 1;
 }
 .face-more {
-  width: 72px;
-  height: 72px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   background: var(--bg3);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--muted);
 }
 .cluster-footer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
