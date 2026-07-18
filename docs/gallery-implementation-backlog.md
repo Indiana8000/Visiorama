@@ -152,9 +152,8 @@
 ### H-3 Image Format Conversion ✅
 - On-demand HEIC/TIFF → JPEG conversion with in-memory cache.
 
-### H-4 Dead-Code Cleanup ❌ (P2)
-- `internal/health/` and `internal/stream/` are empty stub packages, never imported.
-- Safe to delete (superseded by `handlers_health.go` and `handlers_media.go`).
+### H-4 Dead-Code Cleanup ✅
+- `internal/health/` and `internal/stream/` deleted (empty stubs, superseded).
 
 ---
 
