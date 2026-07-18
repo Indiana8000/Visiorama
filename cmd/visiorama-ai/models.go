@@ -45,8 +45,7 @@ var models = []modelSpec{
 	{
 		Name:   "arcface",
 		File:   "glintr100.onnx",
-		// ArcFace R100 — 512d embeddings, ~260 MB
-		// TODO: replace with w600k_mbf.onnx (~12 MB) once a stable versioned URL is available
+		// ArcFace R100 on Glint360K — 512d embeddings, ~260 MB, best open-source accuracy
 		URL:    "https://huggingface.co/DIAMONIK7777/antelopev2/resolve/main/glintr100.onnx",
 		SHA256: "4ab1d6435d639628a6f3e5008dd4f929edf4c4124b1a7169e1048f9fef534cdf",
 	},

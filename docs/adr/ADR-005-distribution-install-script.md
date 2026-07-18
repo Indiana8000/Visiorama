@@ -38,9 +38,7 @@ GitHub Releases and registers a system service.
   `visiorama` (main server, depends on sidecar). Sidecar unit omitted when AI binary absent.
 
 ## Open Items
-- **CI build for `visiorama-ai`:** the CGO binary is not yet built in GitHub Actions.
-  A separate job is needed that links onnxruntime for linux/amd64 and linux/arm64.
-  Until this exists, `install.sh` skips the AI binary download (graceful degradation).
+None.
 
 ## Rejected Alternatives
 

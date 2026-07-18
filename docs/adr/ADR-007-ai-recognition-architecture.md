@@ -67,10 +67,11 @@ Acceptable because inference runs as background post-scan queue, not real-time.
 ## Open Items
 - **Model checksums:** ✅ SHA256 hashes populated in `cmd/visiorama-ai/models.go` for all
   three models (yolov8n, SCRFD, ArcFace).
-- **Model size:** `glintr100.onnx` (~260 MB) should be replaced by `w600k_mbf.onnx` (~12 MB)
-  once a stable, versioned download URL is confirmed.
-- **CI build:** `visiorama-ai` CGO binary not yet built in GitHub Actions. Required for
-  `install.sh` to download it from Releases. See ADR-005.
+- **Model size:** `glintr100.onnx` (~260 MB) kept intentionally — ResNet-100 on Glint360K
+  is significantly more accurate than lighter alternatives (e.g. w600k_mbf). Disk space is
+  not a constraint for the target home-lab use case.
+- **CI build:** ✅ `visiorama-ai` built in GitHub Actions (`release.yml`) for linux/amd64
+  and linux/arm64 with onnxruntime cross-linking. See ADR-005.
 - **Cover face selection:** cluster cover face is picked from unsorted Go map iteration in
   `SaveClusterAssignments` → non-deterministic. Should use `MIN(face_id)`.
 - **Version check:** no mechanism to warn when `visiorama-ai` binary is outdated relative

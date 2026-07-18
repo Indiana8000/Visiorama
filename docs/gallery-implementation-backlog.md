@@ -134,10 +134,10 @@
 - Config written once with full inline comments; never overwritten on upgrade.
 - See ADR-005.
 
-### G-2 CI Build for `visiorama-ai` ❌ (P0 for release)
-- CGO binary with ONNX not yet built in CI.
-- Needed: separate GitHub Actions job for linux/amd64 + arm64 with onnxruntime linking.
-- See ADR-005 open items.
+### G-2 CI Build for `visiorama-ai` ✅
+- Built in `release.yml` for linux/amd64 + linux/arm64 with onnxruntime cross-linking.
+- armv7 skipped (no upstream ORT armv7 release).
+- `libonnxruntime.so.*` uploaded to GitHub Release alongside the binary.
 
 ---
 
