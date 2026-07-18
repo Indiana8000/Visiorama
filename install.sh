@@ -80,8 +80,8 @@ download_verified() {
 
 # ── install systemd units ─────────────────────────────────────────────────────
 install_systemd() {
-  # visiorama-ai sidecar (socket-activated companion)
-  cat > /etc/systemd/system/visiorama-ai.service <<EOF
+  if [ "${AI_AVAILABLE}" = "true" ]; then
+    cat > /etc/systemd/system/visiorama-ai.service <<EOF
 [Unit]
 Description=Visiorama AI inference sidecar
 After=network.target
@@ -100,12 +100,15 @@ RuntimeDirectory=visiorama
 [Install]
 WantedBy=multi-user.target
 EOF
+  fi
 
-  # main visiorama server
+  local after_ai=""
+  [ "${AI_AVAILABLE}" = "true" ] && after_ai=" visiorama-ai.service"
+
   cat > /etc/systemd/system/visiorama.service <<EOF
 [Unit]
 Description=Visiorama photo gallery
-After=network.target visiorama-ai.service
+After=network.target${after_ai}
 
 [Service]
 User=${SERVICE_USER}
@@ -118,15 +121,21 @@ WantedBy=multi-user.target
 EOF
 
   systemctl daemon-reload
-  systemctl enable visiorama-ai visiorama
-  echo "  systemd units installed."
-  echo "  Start with: systemctl start visiorama-ai visiorama"
+  if [ "${AI_AVAILABLE}" = "true" ]; then
+    systemctl enable visiorama-ai visiorama
+    echo "  systemd units installed."
+    echo "  Start with: systemctl start visiorama-ai visiorama"
+  else
+    systemctl enable visiorama
+    echo "  systemd unit installed."
+    echo "  Start with: systemctl start visiorama"
+  fi
 }
 
 # ── install openrc services ───────────────────────────────────────────────────
 install_openrc() {
-  # visiorama-ai sidecar
-  cat > /etc/init.d/visiorama-ai <<EOF
+  if [ "${AI_AVAILABLE}" = "true" ]; then
+    cat > /etc/init.d/visiorama-ai <<EOF
 #!/sbin/openrc-run
 
 name="visiorama-ai"
@@ -149,9 +158,12 @@ start_pre() {
   chown ${SERVICE_USER} /run/visiorama
 }
 EOF
-  chmod +x /etc/init.d/visiorama-ai
+    chmod +x /etc/init.d/visiorama-ai
+  fi
 
-  # main server
+  local after_ai=""
+  [ "${AI_AVAILABLE}" = "true" ] && after_ai="  after visiorama-ai"
+
   cat > /etc/init.d/visiorama <<EOF
 #!/sbin/openrc-run
 
@@ -167,15 +179,21 @@ error_log="/var/log/visiorama.log"
 
 depend() {
   need net
-  after visiorama-ai
+${after_ai}
 }
 EOF
   chmod +x /etc/init.d/visiorama
 
-  rc-update add visiorama-ai default
-  rc-update add visiorama default
-  echo "  OpenRC services installed."
-  echo "  Start with: rc-service visiorama-ai start && rc-service visiorama start"
+  if [ "${AI_AVAILABLE}" = "true" ]; then
+    rc-update add visiorama-ai default
+    rc-update add visiorama default
+    echo "  OpenRC services installed."
+    echo "  Start with: rc-service visiorama-ai start && rc-service visiorama start"
+  else
+    rc-update add visiorama default
+    echo "  OpenRC service installed."
+    echo "  Start with: rc-service visiorama start"
+  fi
 }
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -208,6 +226,18 @@ main() {
     download_verified "${AI_BINARY_URL}" "${INSTALL_DIR}/visiorama-ai" "visiorama-ai"
     echo "  AI sidecar installed to ${INSTALL_DIR}/visiorama-ai"
     AI_AVAILABLE=true
+    # visiorama-ai is built with glibc; Alpine uses musl — gcompat provides the shim
+    if [ "${DISTRO}" = "alpine" ]; then
+      echo "  Installing gcompat (glibc compatibility shim for Alpine)..."
+      apk add --no-cache gcompat
+      echo "  Installing ONNX Runtime..."
+      apk add --no-cache onnxruntime
+      # Alpine ships libonnxruntime.so.1 but not the unversioned symlink
+      if [ ! -f /usr/lib/libonnxruntime.so ] && [ -f /usr/lib/libonnxruntime.so.1 ]; then
+        ln -s /usr/lib/libonnxruntime.so.1 /usr/lib/libonnxruntime.so
+        echo "  Created symlink: libonnxruntime.so -> libonnxruntime.so.1"
+      fi
+    fi
   else
     echo "  visiorama-ai not found in release — AI features will be unavailable"
     echo "  (build from source with CGO enabled to get AI support)"
@@ -237,6 +267,13 @@ main() {
 
   # Write example config (never overwrite existing)
   mkdir -p "${CONFIG_DIR}"
+  if [ "${AI_AVAILABLE}" = "true" ]; then
+    AI_BINARY_VAL="${INSTALL_DIR}/visiorama-ai"
+    AI_SOCKET_VAL="/run/visiorama/visiorama-ai.sock"
+  else
+    AI_BINARY_VAL=""
+    AI_SOCKET_VAL=""
+  fi
   if [ ! -f "${CONFIG_DIR}/visiorama.yaml" ]; then
     cat > "${CONFIG_DIR}/visiorama.yaml" <<EOF
 server:
@@ -278,8 +315,8 @@ database:
   sqlitePath: ${DATA_DIR}/index.db  # path to the SQLite index database file (required)
 
 ai:
-  binary: ${INSTALL_DIR}/visiorama-ai  # path to visiorama-ai binary; empty = auto-detect from PATH
-  socketPath: /run/visiorama/visiorama-ai.sock  # Unix socket for sidecar communication
+  binary: ${AI_BINARY_VAL}             # path to visiorama-ai binary; empty = auto-detect from PATH
+  socketPath: ${AI_SOCKET_VAL}         # Unix socket for sidecar communication; empty = /tmp/visiorama-ai.sock
   modelDir: ${DATA_DIR}/models    # directory where ONNX models are stored and downloaded to (~300 MB total)
   faceCacheDir: ${DATA_DIR}/crops # directory for face crop JPEG thumbnails
   workers: 0                   # concurrent inference workers inside the sidecar; 0 = auto (min 2)
@@ -343,6 +380,8 @@ EOF
     echo "  ONNX Runtime — required for AI face/object recognition:"
     if [ "${DISTRO}" = "alpine" ]; then
       echo "    Alpine:  apk add onnxruntime"
+      echo "    Note: gcompat (glibc shim) was installed automatically — required for the"
+      echo "          glibc-linked visiorama-ai binary on Alpine/musl."
       echo "    Or set ORT_LIB_PATH to your libonnxruntime.so location."
     elif [ "${DISTRO}" = "debian" ]; then
       echo "    Debian:  apt install libonnxruntime  (if available) or download from:"
