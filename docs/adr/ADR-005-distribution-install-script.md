@@ -30,6 +30,17 @@ GitHub Releases and registers a system service.
 - Config file is written once at install time and never overwritten by upgrades.
 - Service runs as dedicated `visiorama` user (no shell, no login).
 - ffmpeg is an optional runtime dependency; thumbnails degrade gracefully to placeholder SVG.
+- `visiorama-ai` is distributed as a separate binary (CGO + onnxruntime); `install.sh`
+  downloads it when present in Releases, skips gracefully when absent.
+- On Alpine: `install.sh` installs `gcompat` + `onnxruntime` and creates the
+  `libonnxruntime.so` symlink automatically (the package ships only `.so.1`).
+- Two systemd/OpenRC service units are written: `visiorama-ai` (socket sidecar) and
+  `visiorama` (main server, depends on sidecar). Sidecar unit omitted when AI binary absent.
+
+## Open Items
+- **CI build for `visiorama-ai`:** the CGO binary is not yet built in GitHub Actions.
+  A separate job is needed that links onnxruntime for linux/amd64 and linux/arm64.
+  Until this exists, `install.sh` skips the AI binary download (graceful degradation).
 
 ## Rejected Alternatives
 

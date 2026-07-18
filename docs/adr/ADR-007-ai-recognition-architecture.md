@@ -1,6 +1,6 @@
 # ADR-007: AI Recognition Architecture
 
-- Status: Proposed
+- Status: Implemented
 - Date: 2026-07-17
 
 ## Context
@@ -49,13 +49,36 @@ Acceptable because inference runs as background post-scan queue, not real-time.
 - **Progress Badge** — Persons button shows "Analysing… 234/1500" during active queue.
 
 ## Consequences
-- Requires `visiorama-ai` binary + model download (~300–500MB) for feature to activate.
-- `visiorama-ai` communicates with main service via HTTP (localhost) or Unix socket.
-- New DB tables: `ai_labels`, `ai_faces`, `ai_persons`, `ai_embeddings`.
-- Face crops stored as small JPEG files in service-owned cache dir.
+- Requires `visiorama-ai` binary + model download (~300 MB) for feature to activate.
+- `visiorama-ai` communicates with main service via Unix socket.
+- DB tables: `ai_jobs`, `ai_labels`, `ai_faces`, `ai_persons`, `ai_face_assignments`.
+- Face crops stored as JPEG files in `ai.faceCacheDir`.
+- Alpine Linux requires `gcompat` (glibc shim) because the CGO binary links glibc.
+- `install.sh` installs `gcompat` + `onnxruntime` automatically and creates the missing
+  `libonnxruntime.so` symlink (Alpine ships only the versioned `.so.1`).
+
+## Implementation Deviations from Plan
+- Fine-grained EfficientNet-B0 classifier (breeds etc.) not implemented — YOLOv8n 80-class
+  output deemed sufficient for initial release.
+- Face detector is SCRFD-10G (not MTCNN/RetinaFace as originally considered).
+- Embedding model is ArcFace R100 (`glintr100.onnx`, ~260 MB); plan was to switch to
+  `w600k_mbf.onnx` (~12 MB) — not yet done (URL unconfirmed).
+
+## Open Items
+- **Model checksums:** SHA256 hashes for SCRFD and ArcFace download URLs not yet populated
+  in `cmd/visiorama-ai/models.go`. Checksums must be added before first public release to
+  prevent tampered downloads.
+- **Model size:** `glintr100.onnx` (~260 MB) should be replaced by `w600k_mbf.onnx` (~12 MB)
+  once a stable, versioned download URL is confirmed.
+- **CI build:** `visiorama-ai` CGO binary not yet built in GitHub Actions. Required for
+  `install.sh` to download it from Releases. See ADR-005.
+- **Cover face selection:** cluster cover face is picked from unsorted Go map iteration in
+  `SaveClusterAssignments` → non-deterministic. Should use `MIN(face_id)`.
+- **Version check:** no mechanism to warn when `visiorama-ai` binary is outdated relative
+  to the main service.
 
 ## Rejected Alternatives
 - Python sidecar: extra runtime dependency, complex deployment.
 - Cloud APIs: privacy concern, requires internet, ongoing cost.
-- Models embedded in binary: ~500MB binary, impractical.
+- Models embedded in binary: ~500 MB binary, impractical.
 - GPU-only models: excludes target hardware.
