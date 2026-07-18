@@ -242,3 +242,13 @@ func (h *mapHandler) getGPSCount(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"count": count})
 }
+
+func (h *mapHandler) getGPSCountGlobal(w http.ResponseWriter, r *http.Request) {
+	mediaRepo := repositories.NewMediaRepo(h.store.DB())
+	count, err := mediaRepo.CountGPSMedia(nil)
+	if err != nil {
+		internalError(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"count": count})
+}

@@ -87,9 +87,9 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 	albumCache := map[string]int64{}
 	var mu sync.Mutex
 
-	ensureAlbum := func(relPath string) (int64, error) {
-		mu.Lock()
-		defer mu.Unlock()
+	// ensureAlbumLocked upserts an album and all missing ancestors. Must be called with mu held.
+	var ensureAlbumLocked func(relPath string) (int64, error)
+	ensureAlbumLocked = func(relPath string) (int64, error) {
 		if id, ok := albumCache[relPath]; ok {
 			return id, nil
 		}
@@ -103,15 +103,11 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 			if parent == "." {
 				parent = ""
 			}
-			if pid, ok := albumCache[parent]; ok {
-				parentID = &pid
-			} else {
-				// Parent not in cache — look up from DB to avoid overwriting with nil.
-				if pa, err := albumRepo.GetByPath(parent); err == nil && pa != nil {
-					albumCache[parent] = pa.ID
-					parentID = &pa.ID
-				}
+			pid, err := ensureAlbumLocked(parent)
+			if err != nil {
+				return 0, err
 			}
+			parentID = &pid
 		}
 		id, err := albumRepo.Upsert(&repositories.Album{
 			RelativePath:  relPath,
@@ -123,6 +119,12 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 		}
 		albumCache[relPath] = id
 		return id, nil
+	}
+
+	ensureAlbum := func(relPath string) (int64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return ensureAlbumLocked(relPath)
 	}
 
 	// Pre-seed album cache with root so parent lookups work for top-level dirs.

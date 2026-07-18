@@ -121,6 +121,11 @@ export const api = {
     return request(`/api/albums/${albumId}/gps-count`)
   },
 
+  /** GET /api/gps-count — global count across all media */
+  getGlobalGPSCount() {
+    return request('/api/gps-count')
+  },
+
   // --- AI persons / clusters ---
 
   /** GET /api/ai/clusters */

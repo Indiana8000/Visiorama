@@ -104,6 +104,9 @@ async function poll(scanId) {
       stopPolling()
       stopElapsed()
       emit('done', updated)
+      if (updated.status === 'success') {
+        setTimeout(() => { job.value = null }, 5000)
+      }
     }
   } catch (e) {
     stopPolling()
@@ -136,6 +139,7 @@ async function handleReanalyze() {
   try {
     await api.reanalyzeAlbum(props.albumPath)
     reanalyzeQueued.value = true
+    setTimeout(() => { reanalyzeQueued.value = false }, 5000)
   } catch (e) {
     errorMsg.value = 'Re-analyze failed: ' + e.message
   } finally {

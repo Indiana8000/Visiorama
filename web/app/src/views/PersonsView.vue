@@ -8,7 +8,9 @@
         · {{ persons.length.toLocaleString() }} person{{ persons.length !== 1 ? 's' : '' }}
       </span>
       <div class="meta-buttons">
-        <button class="btn-nav" @click="$router.push('/map')">🗺 Map</button>
+        <button v-if="gpsCount > 0" class="btn-nav" @click="$router.push('/map')">
+          🗺 Map<span class="nav-badge">{{ gpsCount }}</span>
+        </button>
         <button class="btn-nav" @click="$router.back()">&#128193; Album</button>
       </div>
     </div>
@@ -166,8 +168,16 @@ const personMedia = ref([])
 const mediaPage = ref({ page: 1, totalPages: 1, hasPrev: false, hasNext: false })
 const renameTarget = ref(null)
 const renameValue = ref('')
+const gpsCount = ref(0)
 
 const totalMediaCount = computed(() => persons.value.reduce((s, p) => s + (p.mediaCount || 0), 0))
+
+async function loadGPSCount() {
+  try {
+    const res = await api.getGlobalGPSCount()
+    gpsCount.value = res.count
+  } catch { gpsCount.value = 0 }
+}
 
 async function load() {
   loading.value = true
@@ -290,6 +300,7 @@ async function openPersonById(id) {
 }
 
 onMounted(async () => {
+  loadGPSCount()
   if (props.personId) {
     await openPersonById(props.personId)
   } else {
@@ -333,6 +344,15 @@ watch(() => props.personId, (id) => {
   flex-shrink: 0;
 }
 .btn-nav:hover { background: #45475a; }
+.nav-badge {
+  background: var(--accent);
+  color: #1e1e2e;
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
 
 .section { margin-bottom: 40px; }
 .section-title {

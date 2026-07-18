@@ -104,9 +104,8 @@ async function loadAICounts() {
 }
 
 async function loadGPSCount(id) {
-  if (id == null) { gpsCount.value = 0; return }
   try {
-    const res = await api.getAlbumGPSCount(id)
+    const res = (id == null || id === 0) ? await api.getGlobalGPSCount() : await api.getAlbumGPSCount(id)
     gpsCount.value = res.count
   } catch { gpsCount.value = 0 }
 }
