@@ -680,6 +680,9 @@ async function load(id) {
     if (!personSiblingsLoaded.value || personSiblings.value.length === 0) {
       loadPersonSiblings(personId)
     }
+    if (store.currentMedia && store.currentAlbum?.album?.id !== store.currentMedia.albumId) {
+      store.fetchAlbum(store.currentMedia.albumId, 1, 1)
+    }
   } else if (store.currentMedia && store.currentAlbum?.album?.id !== store.currentMedia.albumId) {
     store.fetchAlbum(store.currentMedia.albumId, 1, 500)
   }
