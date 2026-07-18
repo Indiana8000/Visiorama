@@ -30,6 +30,8 @@
               v-for="face in cluster.faces.slice(0, 6)"
               :key="face.faceId"
               class="face-wrap"
+              :title="face.mediaId ? 'Click to open photo' : ''"
+              @click="face.mediaId && $router.push({ name: 'media', params: { id: face.mediaId }, query: { from: 'persons' } })"
             >
               <img
                 v-if="face.cropPath"
@@ -41,7 +43,7 @@
               <button
                 class="face-remove"
                 title="Remove from cluster"
-                @click="removeFace(cluster, face)"
+                @click.stop="removeFace(cluster, face)"
               >✕</button>
             </div>
             <div v-if="cluster.faces.length > 6" class="face-more">
@@ -394,6 +396,12 @@ watch(() => props.personId, (id) => {
   position: relative;
   width: 72px;
   height: 72px;
+  cursor: pointer;
+}
+.face-wrap:hover .face-crop,
+.face-wrap:hover .face-placeholder {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .face-crop {
   width: 72px;

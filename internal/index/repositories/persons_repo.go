@@ -151,6 +151,8 @@ func (r *PersonsRepo) SaveClusterAssignments(assignments map[int64]int) error {
 }
 
 // ListClusters returns clusters that are not yet named (person.name == '').
+// Clusters are ordered by their lowest face_id so the order is stable across
+// re-clusterings (person_id changes every run; face_id is permanent).
 func (r *PersonsRepo) ListClusters() ([]FaceCluster, error) {
 	rows, err := r.db.Query(`
 		SELECT p.id, f.id, f.media_id, f.crop_path, f.bbox_json
@@ -158,7 +160,9 @@ func (r *PersonsRepo) ListClusters() ([]FaceCluster, error) {
 		JOIN ai_face_assignments a ON a.person_id = p.id
 		JOIN ai_faces f ON f.id = a.face_id
 		WHERE p.name = ''
-		ORDER BY p.id, f.id`)
+		ORDER BY (SELECT MIN(f2.id) FROM ai_face_assignments a2
+		          JOIN ai_faces f2 ON f2.id = a2.face_id
+		          WHERE a2.person_id = p.id), f.id`)
 	if err != nil {
 		return nil, err
 	}
