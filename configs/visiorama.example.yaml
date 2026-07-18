@@ -40,7 +40,7 @@ ai:
   binary: ""              # path to visiorama-ai binary; empty = auto-detect from PATH
   socketPath: ""          # Unix socket path; empty = /tmp/visiorama-ai.sock
   modelDir: /var/lib/visiorama/models
-  faceCacheDir: /var/lib/visiorama/faces
+  faceCacheDir: /var/lib/visiorama/crops
   workers: 0              # inference workers; 0 = auto (min 2)
   labelMinConfidence: 0.6 # minimum confidence to store a detection label (0.0–1.0)
   faceMinPixels: 40

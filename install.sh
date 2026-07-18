@@ -32,6 +32,17 @@ detect_init() {
   fi
 }
 
+# ── detect Linux distro ───────────────────────────────────────────────────────
+detect_distro() {
+  if grep -q "Alpine" /etc/*release 2>/dev/null; then
+    echo "alpine"
+  elif grep -q "Debian" /etc/*release 2>/dev/null || grep -q "Ubuntu" /etc/*release 2>/dev/null; then
+    echo "debian"
+  else
+    echo ""
+  fi
+}
+
 # ── resolve latest release tag ────────────────────────────────────────────────
 latest_tag() {
   curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
@@ -39,12 +50,62 @@ latest_tag() {
     | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/'
 }
 
-# ── install systemd unit ──────────────────────────────────────────────────────
+# ── download + verify a file ──────────────────────────────────────────────────
+download_verified() {
+  local url="$1" dest="$2" label="$3"
+  local checksumUrl="${url}.sha256"
+  local tmp
+  tmp=$(mktemp)
+
+  echo "  Downloading ${label} from ${url}"
+  curl -fsSL -o "${tmp}" "${url}" || { echo "${label} download failed." >&2; rm -f "${tmp}"; exit 1; }
+
+  local expected
+  expected=$(curl -fsSL "${checksumUrl}" 2>/dev/null | awk '{print $1}')
+  if [ -n "${expected}" ]; then
+    local actual
+    actual=$(sha256sum "${tmp}" | awk '{print $1}')
+    if [ "${expected}" != "${actual}" ]; then
+      echo "Checksum mismatch for ${label}!" >&2
+      rm -f "${tmp}"
+      exit 1
+    fi
+  else
+    echo "  Warning: no checksum available for ${label} — skipping verification"
+  fi
+
+  install -m 755 "${tmp}" "${dest}"
+  rm -f "${tmp}"
+}
+
+# ── install systemd units ─────────────────────────────────────────────────────
 install_systemd() {
+  # visiorama-ai sidecar (socket-activated companion)
+  cat > /etc/systemd/system/visiorama-ai.service <<EOF
+[Unit]
+Description=Visiorama AI inference sidecar
+After=network.target
+
+[Service]
+User=${SERVICE_USER}
+Environment=ORT_LIB_PATH=/usr/lib/libonnxruntime.so
+ExecStart=${INSTALL_DIR}/visiorama-ai \
+  -socket /run/visiorama/visiorama-ai.sock \
+  -models ${DATA_DIR}/models \
+  -crops  ${DATA_DIR}/crops
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=visiorama
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  # main visiorama server
   cat > /etc/systemd/system/visiorama.service <<EOF
 [Unit]
 Description=Visiorama photo gallery
-After=network.target
+After=network.target visiorama-ai.service
 
 [Service]
 User=${SERVICE_USER}
@@ -55,13 +116,42 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+
   systemctl daemon-reload
-  systemctl enable visiorama
-  echo "  systemd unit installed. Start with: systemctl start visiorama"
+  systemctl enable visiorama-ai visiorama
+  echo "  systemd units installed."
+  echo "  Start with: systemctl start visiorama-ai visiorama"
 }
 
-# ── install openrc service ────────────────────────────────────────────────────
+# ── install openrc services ───────────────────────────────────────────────────
 install_openrc() {
+  # visiorama-ai sidecar
+  cat > /etc/init.d/visiorama-ai <<EOF
+#!/sbin/openrc-run
+
+name="visiorama-ai"
+description="Visiorama AI inference sidecar"
+command="${INSTALL_DIR}/visiorama-ai"
+command_args="-socket /run/visiorama/visiorama-ai.sock -models ${DATA_DIR}/models -crops ${DATA_DIR}/crops"
+command_user="${SERVICE_USER}"
+pidfile="/run/visiorama-ai.pid"
+command_background=true
+output_log="/var/log/visiorama-ai.log"
+error_log="/var/log/visiorama-ai.log"
+export ORT_LIB_PATH=/usr/lib/libonnxruntime.so
+
+depend() {
+  need net
+}
+
+start_pre() {
+  mkdir -p /run/visiorama
+  chown ${SERVICE_USER} /run/visiorama
+}
+EOF
+  chmod +x /etc/init.d/visiorama-ai
+
+  # main server
   cat > /etc/init.d/visiorama <<EOF
 #!/sbin/openrc-run
 
@@ -77,11 +167,15 @@ error_log="/var/log/visiorama.log"
 
 depend() {
   need net
+  after visiorama-ai
 }
 EOF
   chmod +x /etc/init.d/visiorama
+
+  rc-update add visiorama-ai default
   rc-update add visiorama default
-  echo "  OpenRC service installed. Start with: rc-service visiorama start"
+  echo "  OpenRC services installed."
+  echo "  Start with: rc-service visiorama-ai start && rc-service visiorama start"
 }
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -93,6 +187,7 @@ main() {
 
   ARCH=$(detect_arch)
   INIT=$(detect_init)
+  DISTRO=$(detect_distro)
   TAG=$(latest_tag)
 
   if [ -z "${TAG}" ]; then
@@ -102,29 +197,22 @@ main() {
 
   echo "Installing visiorama ${TAG} (${ARCH}, init=${INIT})"
 
-  # Download binary
+  # Download main binary
   BINARY_URL="https://github.com/${REPO}/releases/download/${TAG}/visiorama-linux-${ARCH}"
-  CHECKSUM_URL="${BINARY_URL}.sha256"
-
-  TMP=$(mktemp)
-  echo "  Downloading ${BINARY_URL}"
-  curl -fsSL -o "${TMP}" "${BINARY_URL}" || { echo "Binary download failed." >&2; rm -f "${TMP}"; exit 1; }
-  EXPECTED=$(curl -fsSL "${CHECKSUM_URL}" | awk '{print $1}')
-  if [ -z "${EXPECTED}" ]; then
-    echo "Checksum download failed: ${CHECKSUM_URL}" >&2
-    rm -f "${TMP}"
-    exit 1
-  fi
-  ACTUAL=$(sha256sum "${TMP}" | awk '{print $1}')
-  if [ "${EXPECTED}" != "${ACTUAL}" ]; then
-    echo "Checksum mismatch!" >&2
-    rm -f "${TMP}"
-    exit 1
-  fi
-
-  install -m 755 "${TMP}" "${INSTALL_DIR}/visiorama"
-  rm -f "${TMP}"
+  download_verified "${BINARY_URL}" "${INSTALL_DIR}/visiorama" "visiorama"
   echo "  Binary installed to ${INSTALL_DIR}/visiorama"
+
+  # Download AI sidecar binary (CGO build with ONNX support)
+  AI_BINARY_URL="https://github.com/${REPO}/releases/download/${TAG}/visiorama-ai-linux-${ARCH}"
+  if curl -fsSL --head "${AI_BINARY_URL}" 2>/dev/null | grep -q "200"; then
+    download_verified "${AI_BINARY_URL}" "${INSTALL_DIR}/visiorama-ai" "visiorama-ai"
+    echo "  AI sidecar installed to ${INSTALL_DIR}/visiorama-ai"
+    AI_AVAILABLE=true
+  else
+    echo "  visiorama-ai not found in release — AI features will be unavailable"
+    echo "  (build from source with CGO enabled to get AI support)"
+    AI_AVAILABLE=false
+  fi
 
   # Create service group and user
   if ! id "${SERVICE_USER}" >/dev/null 2>&1; then
@@ -138,8 +226,12 @@ main() {
     echo "  Service user '${SERVICE_USER}' created"
   fi
 
-  # Create directories
-  mkdir -p "${DATA_DIR}/thumbs" "${DATA_DIR}/transcodes"
+  # Create data directories
+  mkdir -p \
+    "${DATA_DIR}/thumbs" \
+    "${DATA_DIR}/transcodes" \
+    "${DATA_DIR}/models" \
+    "${DATA_DIR}/crops"
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "${DATA_DIR}"
   echo "  Data directory: ${DATA_DIR}"
 
@@ -169,13 +261,13 @@ filtering:
   enableMimeSniff: true
 
 thumbnails:
-  cacheDir: /var/lib/visiorama/thumbs
+  cacheDir: ${DATA_DIR}/thumbs
   sizes: [320, 640]
   aspectRatioW: 4
   aspectRatioH: 3
 
 transcode:
-  cacheDir: /var/lib/visiorama/transcodes
+  cacheDir: ${DATA_DIR}/transcodes
   ttlHours: 48
   imageMaxDim: 2400
 
@@ -185,6 +277,24 @@ limits:
 database:
   sqlitePath: ${DATA_DIR}/index.db
 
+ai:
+  # Path to visiorama-ai binary. Empty = auto-detect from PATH.
+  binary: ${INSTALL_DIR}/visiorama-ai
+  # Unix socket used to communicate with the sidecar.
+  socketPath: /run/visiorama/visiorama-ai.sock
+  # Directory where ONNX models are downloaded to (~300 MB total).
+  modelDir: ${DATA_DIR}/models
+  # Directory where face crop JPEGs are stored.
+  faceCacheDir: ${DATA_DIR}/crops
+  # Concurrent inference workers (0 = auto).
+  workers: 0
+  # Minimum detection confidence to store a label (0.0–1.0).
+  labelMinConfidence: 0.6
+  # Minimum face bounding-box size in pixels. Smaller faces are ignored.
+  faceMinPixels: 40
+  # Re-queue all media for AI analysis on every full scan.
+  reanalyzeOnFullScan: false
+
 EOF
     echo "  Config written to ${CONFIG_DIR}/visiorama.yaml"
     echo ""
@@ -193,13 +303,17 @@ EOF
     echo "  Config already exists at ${CONFIG_DIR}/visiorama.yaml — not overwritten"
   fi
 
-  # Install service
+  # Install service(s)
   case "${INIT}" in
     systemd) install_systemd ;;
     openrc)  install_openrc ;;
     *)
       echo "  No supported init system detected — skipping service registration"
-      echo "  Run manually: ${INSTALL_DIR}/visiorama -config ${CONFIG_DIR}/visiorama.yaml"
+      echo "  Run manually:"
+      if [ "${AI_AVAILABLE}" = "true" ]; then
+        echo "    ${INSTALL_DIR}/visiorama-ai -socket /run/visiorama/visiorama-ai.sock -models ${DATA_DIR}/models -crops ${DATA_DIR}/crops &"
+      fi
+      echo "    ${INSTALL_DIR}/visiorama -config ${CONFIG_DIR}/visiorama.yaml"
       ;;
   esac
 
@@ -209,20 +323,15 @@ EOF
   echo "If your photo library is on a mounted drive, grant access:"
   echo "  usermod -aG <mountgroup> ${SERVICE_USER}"
   echo ""
-  # Detect Linux distribution and show only relevant install commands
-  DISTRO=""
-  if grep -q "Alpine" /etc/*release 2>/dev/null; then
-    DISTRO="alpine"
-  elif grep -q "Debian" /etc/*release 2>/dev/null || grep -q "Ubuntu" /etc/*release 2>/dev/null; then
-    DISTRO="debian"
-  fi
-
   echo "Optional dependencies:"
   echo ""
   echo "  ffmpeg — video thumbnails + video transcoding:"
   if [ "${DISTRO}" = "alpine" ]; then
     echo "    Alpine:  apk add ffmpeg"
   elif [ "${DISTRO}" = "debian" ]; then
+    echo "    Debian:  apt install ffmpeg"
+  else
+    echo "    Alpine:  apk add ffmpeg"
     echo "    Debian:  apt install ffmpeg"
   fi
   echo ""
@@ -233,6 +342,26 @@ EOF
     echo "    Debian:  apt install imagemagick libheif1"
     echo "    Note: libheif enables HEIC/HEIF decoding in ImageMagick."
     echo "          Without it, visiorama falls back to ffmpeg for those formats."
+  else
+    echo "    Alpine:  apk add imagemagick imagemagick-heic"
+    echo "    Debian:  apt install imagemagick libheif1"
+  fi
+  echo ""
+  if [ "${AI_AVAILABLE}" = "true" ]; then
+    echo "  ONNX Runtime — required for AI face/object recognition:"
+    if [ "${DISTRO}" = "alpine" ]; then
+      echo "    Alpine:  apk add onnxruntime"
+      echo "    Or set ORT_LIB_PATH to your libonnxruntime.so location."
+    elif [ "${DISTRO}" = "debian" ]; then
+      echo "    Debian:  apt install libonnxruntime  (if available) or download from:"
+      echo "             https://github.com/microsoft/onnxruntime/releases"
+      echo "    Or set ORT_LIB_PATH to your libonnxruntime.so location."
+    else
+      echo "    Download from: https://github.com/microsoft/onnxruntime/releases"
+      echo "    Or set ORT_LIB_PATH to your libonnxruntime.so location."
+    fi
+    echo "    ONNX models (~300 MB) are downloaded automatically on first start."
+    echo ""
   fi
 }
 
