@@ -125,11 +125,18 @@ func getSCRFDInstance(modelPath string) (*scrfdInstance, error) {
 		outputs[6+i] = kd
 	}
 
+	opts, err := newSessionOptions()
+	if err != nil {
+		_ = inTensor.Destroy()
+		return nil, fmt.Errorf("scrfd session options: %w", err)
+	}
+	defer opts.Destroy()
+
 	session, err := ort.NewAdvancedSession(
 		modelPath,
 		[]string{"input.1"},
 		scrfdOutputNames,
-		inputs, outputs, nil,
+		inputs, outputs, opts,
 	)
 	if err != nil {
 		_ = inTensor.Destroy()
@@ -162,13 +169,21 @@ func getArcfaceInstance(modelPath string) (*arcfaceInstance, error) {
 		_ = inTensor.Destroy()
 		return nil, fmt.Errorf("arcface output tensor: %w", err)
 	}
+	arcOpts, err := newSessionOptions()
+	if err != nil {
+		_ = inTensor.Destroy()
+		_ = outTensor.Destroy()
+		return nil, fmt.Errorf("arcface session options: %w", err)
+	}
+	defer arcOpts.Destroy()
+
 	session, err := ort.NewAdvancedSession(
 		modelPath,
 		[]string{arcfaceInputName},
 		[]string{arcfaceOutputName},
 		[]ort.Value{inTensor},
 		[]ort.Value{outTensor},
-		nil,
+		arcOpts,
 	)
 	if err != nil {
 		_ = inTensor.Destroy()

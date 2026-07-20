@@ -63,6 +63,24 @@ func initORT() error {
 	return ortErr
 }
 
+// newSessionOptions returns SessionOptions with explicit thread counts so ORT
+// does not attempt pthread_setaffinity_np (error code 22 on some kernels).
+func newSessionOptions() (*ort.SessionOptions, error) {
+	opts, err := ort.NewSessionOptions()
+	if err != nil {
+		return nil, err
+	}
+	if err := opts.SetIntraOpNumThreads(1); err != nil {
+		opts.Destroy()
+		return nil, err
+	}
+	if err := opts.SetInterOpNumThreads(1); err != nil {
+		opts.Destroy()
+		return nil, err
+	}
+	return opts, nil
+}
+
 // yoloInstance holds a loaded session and pre-allocated tensor buffers.
 // Access is serialised by mu so the same buffers can be reused across calls.
 type yoloInstance struct {
@@ -106,13 +124,21 @@ func getYOLOInstance(modelPath string) (*yoloInstance, error) {
 		return nil, fmt.Errorf("create output tensor: %w", err)
 	}
 
+	opts, err := newSessionOptions()
+	if err != nil {
+		_ = inTensor.Destroy()
+		_ = outTensor.Destroy()
+		return nil, fmt.Errorf("yolo session options: %w", err)
+	}
+	defer opts.Destroy()
+
 	session, err := ort.NewAdvancedSession(
 		modelPath,
 		[]string{"images"},
 		[]string{"output0"},
 		[]ort.Value{inTensor},
 		[]ort.Value{outTensor},
-		nil,
+		opts,
 	)
 	if err != nil {
 		_ = inTensor.Destroy()
