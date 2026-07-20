@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -17,16 +19,18 @@ import (
 )
 
 // modelSpec describes a downloadable ONNX model.
+// If ZipURL is set the model is downloaded as a ZIP; ZipFiles lists the entries
+// to extract (all must land in the same directory as File).
 type modelSpec struct {
-	Name   string
-	File   string
-	URL    string
-	SHA256 string // hex-encoded SHA-256 of the file; empty = skip verification
+	Name     string
+	File     string
+	URL      string
+	SHA256   string   // hex SHA-256 of File after extraction; empty = skip
+	ZipURL   string   // download a ZIP instead of a bare file
+	ZipFiles []string // entries to extract from the ZIP (relative names inside ZIP)
 }
 
 // models lists all models used by visiorama-ai.
-// URLs point to stable releases; SHA256 checksums prevent tampered downloads.
-// NOTE: When real model URLs are confirmed, replace these placeholders.
 var models = []modelSpec{
 	{
 		Name:   "yolov8n",
@@ -48,6 +52,19 @@ var models = []modelSpec{
 		// ArcFace R100 on Glint360K — 512d embeddings, ~260 MB, best open-source accuracy
 		URL:    "https://huggingface.co/DIAMONIK7777/antelopev2/resolve/main/glintr100.onnx",
 		SHA256: "4ab1d6435d639628a6f3e5008dd4f929edf4c4124b1a7169e1048f9fef534cdf",
+	},
+	{
+		Name: "species",
+		File: "mobilenet_v3_small.onnx",
+		// MobileNetV3-Small (Qualcomm AI Hub) — ImageNet-1000, ~10 MB zip, ~2 ms/crop on CPU.
+		// Uses ONNX external-data format: mobilenet_v3_small.data holds the weights.
+		// Dog breed determined by renormalising softmax over the ~99 dog-class subset.
+		ZipURL: "https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/mobilenet_v3_small/releases/v0.58.0/mobilenet_v3_small-onnx-float.zip",
+		ZipFiles: []string{
+			"mobilenet_v3_small.onnx",
+			"mobilenet_v3_small.data",
+		},
+		SHA256: "cfa0684a4290a63593adb26b8fb036840f1fbb678831e93d50c056916beabdc4",
 	},
 }
 
@@ -76,12 +93,24 @@ func (m *modelManager) EnsureModels(ctx context.Context) error {
 				continue
 			}
 		}
-		slog.Info("downloading model", "model", spec.Name, "url", spec.URL)
-		if err := downloadFile(ctx, spec.URL, path); err != nil {
-			// Non-fatal: log and continue. Feature degrades gracefully without models.
-			slog.Warn("model download failed", "model", spec.Name, "err", err)
+
+		// Download
+		var dlErr error
+		if spec.ZipURL != "" {
+			slog.Info("downloading model (zip)", "model", spec.Name, "url", spec.ZipURL)
+			dlErr = downloadZip(ctx, spec.ZipURL, m.dir, spec.ZipFiles)
+		} else if spec.URL != "" {
+			slog.Info("downloading model", "model", spec.Name, "url", spec.URL)
+			dlErr = downloadFile(ctx, spec.URL, path)
+		} else {
+			slog.Warn("model not found and no download URL configured", "model", spec.Name, "path", path)
 			continue
 		}
+		if dlErr != nil {
+			slog.Warn("model download failed", "model", spec.Name, "err", dlErr)
+			continue
+		}
+
 		if err := verifyChecksum(path, spec.SHA256); err != nil {
 			slog.Warn("model checksum failed after download", "model", spec.Name, "err", err)
 			_ = os.Remove(path)
@@ -120,6 +149,28 @@ func (m *modelManager) Analyze(ctx context.Context, req ai.AnalyzeRequest) (*ai.
 			slog.Warn("yolo inference failed", "mediaId", req.MediaID, "err", err)
 		} else {
 			resp.Labels = append(resp.Labels, labels...)
+
+			// --- Species / Breed Classification (dog, cat, bird) ---
+			// Only runs per YOLO class when that class was detected — negligible overhead otherwise.
+			if m.modelAvailable("species") {
+				speciesModel := filepath.Join(m.dir, "mobilenet_v3_small.onnx")
+				type speciesTarget struct {
+					cls string
+					m   map[int]string
+				}
+				for _, t := range []speciesTarget{
+					{"dog", dogBreedMap},
+					{"cat", catSpeciesMap},
+					{"bird", birdSpeciesMap},
+				} {
+					sl, sErr := runSpeciesForLabels(ctx, speciesModel, req.FilePath, labels, t.cls, t.m)
+					if sErr != nil {
+						slog.Warn("species inference failed", "mediaId", req.MediaID, "class", t.cls, "err", sErr)
+					} else {
+						resp.Labels = append(resp.Labels, sl...)
+					}
+				}
+			}
 		}
 	}
 
@@ -178,6 +229,85 @@ func downloadFile(ctx context.Context, url, dest string) error {
 		return err
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
+		f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	f.Close()
+	return os.Rename(tmp, dest)
+}
+
+// downloadZip downloads a ZIP from url and extracts only the entries listed in
+// files into destDir.  Each entry is written atomically via a .tmp sibling.
+func downloadZip(ctx context.Context, url, destDir string, files []string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %s", resp.Status)
+	}
+
+	// Read into memory so zip.NewReader can seek. Models are ≤300 MB — acceptable.
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read zip body: %w", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return fmt.Errorf("open zip: %w", err)
+	}
+
+	want := make(map[string]bool, len(files))
+	for _, f := range files {
+		want[f] = true
+	}
+
+	for _, zf := range zr.File {
+		name := filepath.Base(zf.Name) // strip any directory prefix inside ZIP
+		if !want[name] {
+			continue
+		}
+		dest := filepath.Join(destDir, name)
+		if err := extractZipEntry(zf, dest); err != nil {
+			return fmt.Errorf("extract %s: %w", name, err)
+		}
+		slog.Info("extracted", "file", name)
+		delete(want, name)
+	}
+
+	if len(want) > 0 {
+		missing := make([]string, 0, len(want))
+		for k := range want {
+			missing = append(missing, k)
+		}
+		return fmt.Errorf("zip missing entries: %v", missing)
+	}
+	return nil
+}
+
+func extractZipEntry(zf *zip.File, dest string) error {
+	rc, err := zf.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+
+	tmp := dest + ".tmp"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(f, rc); err != nil {
 		f.Close()
 		_ = os.Remove(tmp)
 		return err

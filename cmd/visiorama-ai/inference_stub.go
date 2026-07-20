@@ -35,3 +35,13 @@ func runFacePipeline(_ context.Context, detectorPath, embeddingPath, imagePath, 
 	}
 	return nil, fmt.Errorf("visiorama-ai built without CGO: ONNX inference unavailable")
 }
+
+func runSpeciesForLabels(_ context.Context, modelPath, imagePath string, _ []ai.Label, _ string, _ map[int]string) ([]ai.Label, error) {
+	if !fileExists(modelPath) {
+		return nil, fmt.Errorf("model not found: %s", modelPath)
+	}
+	if !fileExists(imagePath) {
+		return nil, fmt.Errorf("image not found: %s", imagePath)
+	}
+	return nil, fmt.Errorf("visiorama-ai built without CGO: ONNX inference unavailable")
+}

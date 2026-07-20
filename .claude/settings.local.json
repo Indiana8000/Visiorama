@@ -61,7 +61,13 @@
       "Bash(python -c \"import insightface; import os; print\\(os.path.dirname\\(insightface.__file__\\)\\)\")",
       "Bash(sqlite3 *)",
       "Bash(python3 -c ' *)",
-      "Bash(grep -v \"sort\\\\|import\\\\|//\\\\|ort.Value\\\\|ort.Shape\\\\|ort.Tensor\\\\|ort.Advanced\")"
+      "Bash(grep -v \"sort\\\\|import\\\\|//\\\\|ort.Value\\\\|ort.Shape\\\\|ort.Tensor\\\\|ort.Advanced\")",
+      "Bash(go clean *)",
+      "Bash(echo '#include <stdio.h> *)",
+      "Bash(gcc -o C:/Temp/test.exe C:/Temp/test.c)",
+      "Bash(C:/Temp/test.exe)",
+      "Bash(git -C C:/TOOLS/DevJava/Visiorama log --oneline -3 -- visiorama-ai.exe)",
+      "Bash(git -C C:/TOOLS/DevJava/Visiorama status visiorama-ai.exe)"
     ]
   }
 }

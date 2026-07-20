@@ -19,7 +19,10 @@ func generateViaImageMagickConvert(srcPath, cachePath string, width, height int)
 
 	// -flatten merges all layers/frames into one (handles multi-layer PSD, animated GIF, etc.)
 	// Must come after input — ImageMagick processes args left-to-right.
-	cmd := exec.Command(bin, srcPath, "-flatten", tmp)
+	// -sampling-factor 4:2:0 forces standard chroma subsampling so Go's jpeg
+	// decoder can open the intermediate (exotic source ratios cause "unsupported
+	// JPEG feature: luma/chroma subsampling ratio" otherwise).
+	cmd := exec.Command(bin, srcPath, "-flatten", "-sampling-factor", "4:2:0", tmp)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("imagemagick decode: %w — %s", err, string(out))
 	}
