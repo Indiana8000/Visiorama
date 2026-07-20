@@ -37,7 +37,7 @@ func NewClient(socketPath string) *Client {
 		},
 	}
 	return &Client{
-		http:       &http.Client{Transport: transport, Timeout: 120 * time.Second},
+		http:       &http.Client{Transport: transport, Timeout: 10 * time.Minute},
 		baseURL:    "http://visiorama-ai",
 		socketPath: socketPath,
 	}

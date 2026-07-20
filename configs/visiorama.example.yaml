@@ -45,3 +45,4 @@ ai:
   labelMinConfidence: 0.6      # minimum detection confidence to store a label (0.0–1.0)
   faceMinPixels: 40            # minimum face bounding-box size in pixels; smaller faces are ignored
   reanalyzeOnFullScan: false   # re-queue all media for AI analysis on every full scan (slow; off by default)
+  analyzeTimeout: 0            # per-item deadline for the sidecar analyze call; 0 = default (5m); increase for large video files (e.g. 10m)

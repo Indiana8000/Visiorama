@@ -79,7 +79,7 @@ func main() {
 	httpSrv := &http.Server{
 		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 120 * time.Second,
+		WriteTimeout: 10 * time.Minute,
 		IdleTimeout:  120 * time.Second,
 	}
 
@@ -130,10 +130,7 @@ func (s *server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
-	defer cancel()
-
-	result, err := s.mgr.Analyze(ctx, req)
+	result, err := s.mgr.Analyze(r.Context(), req)
 	if err != nil {
 		slog.Warn("analyze failed", "mediaId", req.MediaID, "err", err)
 		http.Error(w, fmt.Sprintf("analyze: %v", err), http.StatusInternalServerError)

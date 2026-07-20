@@ -147,7 +147,11 @@ func (q *QueueRunner) processJob(ctx context.Context, c *Client, job *repositori
 		return
 	}
 
-	jobCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	analyzeTimeout := q.cfg.AI.AnalyzeTimeout
+	if analyzeTimeout <= 0 {
+		analyzeTimeout = 5 * time.Minute
+	}
+	jobCtx, cancel := context.WithTimeout(ctx, analyzeTimeout)
 	defer cancel()
 
 	result, err := c.Analyze(jobCtx, AnalyzeRequest{
