@@ -60,7 +60,8 @@
       "Bash(pip install *)",
       "Bash(python -c \"import insightface; import os; print\\(os.path.dirname\\(insightface.__file__\\)\\)\")",
       "Bash(sqlite3 *)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(grep -v \"sort\\\\|import\\\\|//\\\\|ort.Value\\\\|ort.Shape\\\\|ort.Tensor\\\\|ort.Advanced\")"
     ]
   }
 }
