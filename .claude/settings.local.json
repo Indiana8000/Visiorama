@@ -67,7 +67,8 @@
       "Bash(gcc -o C:/Temp/test.exe C:/Temp/test.c)",
       "Bash(C:/Temp/test.exe)",
       "Bash(git -C C:/TOOLS/DevJava/Visiorama log --oneline -3 -- visiorama-ai.exe)",
-      "Bash(git -C C:/TOOLS/DevJava/Visiorama status visiorama-ai.exe)"
+      "Bash(git -C C:/TOOLS/DevJava/Visiorama status visiorama-ai.exe)",
+      "Bash(grep -v \"//\\\\|node_modules\")"
     ]
   }
 }

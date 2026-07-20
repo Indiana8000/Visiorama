@@ -46,6 +46,7 @@
                 :key="slideshowActive ? 'ss-' + slideshowImgId + '-' + slideshowUseConvert : 'img-' + media.id + '-' + imgUseConvert"
                 :src="slideshowActive ? slideshowImgSrc : imgSrc"
                 :alt="media.filename"
+                ref="imgEl"
                 class="lb-img"
                 :class="{ 'lb-img--warn': media.warningLargeMedia }"
                 :style="!slideshowActive ? imgTransformStyle : undefined"
@@ -54,6 +55,12 @@
                 @load="onImgLoad"
               />
             </transition>
+            <!-- Face bbox overlay on person hover -->
+            <div
+              v-if="hoveredFaceBox"
+              class="lb-face-overlay"
+              :style="hoveredFaceBox"
+            ></div>
             <span v-if="imgUseConvert && imgConvertLoaded && !imgConvertFailed" class="lb-img-badge">&#9432; Reduced quality</span>
             <div v-if="imgConvertFailed" class="lb-missing">
               <span class="lb-missing-icon">&#128247;</span>
@@ -167,6 +174,8 @@
               v-for="face in aiFaces.filter(f => f.personId)"
               :key="face.faceId"
               class="lb-person-chip"
+              @mouseenter="hoverFace(face)"
+              @mouseleave="hoverFace(null)"
             >
               <router-link
                 :to="{ name: 'person', params: { personId: face.personId } }"
@@ -640,6 +649,34 @@ function slideshowAdvance() {
   scheduleSlideshowTick()
 }
 
+// --- Face bbox overlay ---
+const imgEl = ref(null)
+const hoveredFaceBox = ref(null)
+
+function hoverFace(face) {
+  if (!face || !imgEl.value || !imgWrap.value || !media.value?.width || !media.value?.height) {
+    hoveredFaceBox.value = null
+    return
+  }
+  const raw = face.bbox
+  if (!raw) { hoveredFaceBox.value = null; return }
+  let bbox
+  try { bbox = typeof raw === 'string' ? JSON.parse(raw) : raw } catch { hoveredFaceBox.value = null; return }
+  const { x, y, w, h } = bbox
+  const imgRect = imgEl.value.getBoundingClientRect()
+  const wrapRect = imgWrap.value.getBoundingClientRect()
+  const scaleX = imgRect.width / media.value.width
+  const scaleY = imgRect.height / media.value.height
+  const offX = imgRect.left - wrapRect.left
+  const offY = imgRect.top - wrapRect.top
+  hoveredFaceBox.value = {
+    left:   (offX + x * scaleX) + 'px',
+    top:    (offY + y * scaleY) + 'px',
+    width:  (w * scaleX) + 'px',
+    height: (h * scaleY) + 'px',
+  }
+}
+
 // --- AI data ---
 const aiLabels = ref([])
 const aiFaces = ref([])
@@ -1093,6 +1130,16 @@ watch(() => route.query.personId, (newId, oldId) => {
   align-items: center;
 }
 .lb-person-chip__remove:hover { color: #f38ba8; background: rgba(243,139,168,0.1); }
+
+/* Face bbox overlay */
+.lb-face-overlay {
+  position: absolute;
+  pointer-events: none;
+  border: 2px solid #e53935;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+  z-index: 0;
+}
 
 /* Label chips */
 .lb-labels {
