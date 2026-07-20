@@ -186,15 +186,15 @@
         </template>
 
         <!-- AI labels -->
-        <template v-if="aiLabels.length > 0">
+        <template v-if="aiLabelsMerged.length > 0">
           <h3 class="lb-meta-section">Labels</h3>
           <div class="lb-labels">
             <span
-              v-for="label in aiLabels"
-              :key="label.label"
+              v-for="item in aiLabelsMerged"
+              :key="item.label"
               class="lb-label-chip"
-              :title="`${Math.round(label.confidence * 100)}% confidence`"
-            >{{ label.label }}</span>
+              :title="`${Math.round(item.confidence * 100)}% confidence`"
+            >{{ item.label }}<span v-if="item.count > 1" class="lb-label-count">{{ item.count }}</span></span>
           </div>
         </template>
       </div>
@@ -643,6 +643,21 @@ function slideshowAdvance() {
 // --- AI data ---
 const aiLabels = ref([])
 const aiFaces = ref([])
+
+const aiLabelsMerged = computed(() => {
+  const map = new Map()
+  for (const l of aiLabels.value) {
+    const key = l.label.toLowerCase()
+    if (map.has(key)) {
+      const existing = map.get(key)
+      existing.count++
+      if (l.confidence > existing.confidence) existing.confidence = l.confidence
+    } else {
+      map.set(key, { label: key, confidence: l.confidence, count: 1 })
+    }
+  }
+  return Array.from(map.values())
+})
 
 async function loadAI(id) {
   try {
@@ -1093,6 +1108,17 @@ watch(() => route.query.personId, (newId, oldId) => {
   font-size: 12px;
   color: var(--muted);
   cursor: default;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.lb-label-count {
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 0 5px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.7;
 }
 
 @media (max-width: 600px) {
