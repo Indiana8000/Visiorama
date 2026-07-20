@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -46,8 +45,8 @@ type AIConfig struct {
 	// ReanalyzeOnFullScan re-queues all media (not just new/changed) on a full scan.
 	ReanalyzeOnFullScan bool `yaml:"reanalyzeOnFullScan"`
 	// AnalyzeTimeout is the per-item deadline for the sidecar analyze call.
-	// 0 = default (5 minutes). Increase for large video files.
-	AnalyzeTimeout time.Duration `yaml:"analyzeTimeout"`
+	// Empty or "0" = default (5 minutes). Use Go duration strings: "10m", "2m30s".
+	AnalyzeTimeout string `yaml:"analyzeTimeout"`
 }
 
 type TranscodeConfig struct {
