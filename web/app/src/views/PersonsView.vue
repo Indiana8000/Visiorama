@@ -27,7 +27,7 @@
         <div v-for="cluster in clusters" :key="cluster.clusterId" class="cluster-card">
           <div class="cluster-faces">
             <div
-              v-for="face in cluster.faces.slice(0, 6)"
+              v-for="face in visibleFaces(cluster)"
               :key="face.faceId"
               class="face-wrap"
               :title="face.mediaId ? 'Click to open photo' : ''"
@@ -46,8 +46,13 @@
                 @click.stop="removeFace(cluster, face)"
               >✕</button>
             </div>
-            <div v-if="cluster.faces.length > 6" class="face-more">
-              +{{ cluster.faces.length - 6 }}
+            <div
+              v-if="cluster.faces.length > MAX_VISIBLE_FACES && !expandedClusters.has(cluster.clusterId)"
+              class="face-more"
+              title="Show all faces"
+              @click="expandCluster(cluster.clusterId)"
+            >
+              +{{ cluster.faces.length - MAX_VISIBLE_FACES }}
             </div>
           </div>
 
@@ -161,8 +166,21 @@ const props = defineProps({
 
 const router = useRouter()
 
+const MAX_VISIBLE_FACES = 6
+
 const clusters = ref([])
 const clusterNames = ref({})
+const expandedClusters = ref(new Set())
+
+function visibleFaces(cluster) {
+  return expandedClusters.value.has(cluster.clusterId)
+    ? cluster.faces
+    : cluster.faces.slice(0, MAX_VISIBLE_FACES)
+}
+
+function expandCluster(clusterId) {
+  expandedClusters.value = new Set(expandedClusters.value).add(clusterId)
+}
 const persons = ref([])
 const loading = ref(false)
 const selectedPerson = ref(null)
@@ -448,6 +466,11 @@ watch(() => props.personId, (id) => {
   justify-content: center;
   font-size: 16px;
   color: var(--muted);
+  cursor: pointer;
+}
+.face-more:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .cluster-footer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .person-select {
