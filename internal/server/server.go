@@ -94,7 +94,8 @@ func Run(cfg *app.Config) error {
 	// requests so both compete for the same MaxWorkers concurrency ceiling
 	// instead of each running unbounded on top of the other.
 	thumbSem := make(chan struct{}, cfg.Scan.MaxWorkers)
-	warmer := thumbs.NewWarmer(mediaRepo, cfg.Library.RootPath, cfg.Thumbnails.CacheDir, defaultWidth, defaultHeight, thumbSem)
+	maxThumbCacheBytes := int64(cfg.Thumbnails.MaxCacheMiB) * 1024 * 1024
+	warmer := thumbs.NewWarmer(mediaRepo, cfg.Library.RootPath, cfg.Thumbnails.CacheDir, defaultWidth, defaultHeight, thumbSem, maxThumbCacheBytes)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Indiana8000/visiorama/internal/cache"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/util"
 )
@@ -31,6 +32,7 @@ type Warmer struct {
 	cacheDir      string
 	defaultWidth  int
 	defaultHeight int
+	maxCacheBytes int64         // 0 = unlimited
 	sem           chan struct{} // shared with foreground thumbnail requests; nil = unbounded
 
 	paused    atomic.Int64 // unix-nano of last Pause() call; 0 = not paused
@@ -42,13 +44,15 @@ type Warmer struct {
 // NewWarmer creates a Warmer. sem, if non-nil, is acquired around each thumbnail
 // generation call and should be shared with the foreground thumbnail handler so
 // background warming and on-demand requests share one concurrency ceiling.
-func NewWarmer(media MediaSource, rootPath, cacheDir string, defaultWidth, defaultHeight int, sem chan struct{}) *Warmer {
+// maxCacheBytes caps total thumbnail cache disk usage; 0 = unlimited.
+func NewWarmer(media MediaSource, rootPath, cacheDir string, defaultWidth, defaultHeight int, sem chan struct{}, maxCacheBytes int64) *Warmer {
 	return &Warmer{
 		media:         media,
 		rootPath:      rootPath,
 		cacheDir:      cacheDir,
 		defaultWidth:  defaultWidth,
 		defaultHeight: defaultHeight,
+		maxCacheBytes: maxCacheBytes,
 		sem:           sem,
 	}
 }
@@ -102,7 +106,14 @@ func (w *Warmer) loop(ctx context.Context) {
 		w.pending.Store(int64(n))
 
 		if n == 0 {
-			// Nothing to do — check again in 60s in case a scan added new items
+			// Pass complete — enforce cache budget now that no new thumbnails
+			// are being written, then check again in 60s in case a scan added
+			// new items.
+			if evicted, freed, err := cache.EvictToBudget(w.cacheDir, w.maxCacheBytes); err != nil {
+				slog.Warn("thumb warmer: cache budget eviction failed", "err", err)
+			} else if evicted > 0 {
+				slog.Info("thumb warmer: cache budget eviction", "removed", evicted, "freedBytes", freed)
+			}
 			w.running.Store(false)
 			sleep(ctx, 60*time.Second)
 			continue

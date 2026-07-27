@@ -77,8 +77,8 @@
 - Progress shown left of buttons; success auto-clears after 5 s, errors persist.
 - Stale/hung jobs marked failed at startup so buttons are immediately clickable.
 
-### D-2 Manual Re-Scan from CLI ❌ (P2)
-- `visiorama scan --mode full|quick`
+### D-2 Manual Re-Scan from CLI ✅
+- `visiorama scan --mode full|quick|orphan` runs synchronously, no HTTP server needed.
 
 ### D-3 Health and Logging ✅
 - `/api/health` with source root and DB availability.
@@ -104,10 +104,10 @@
 ### E-2 Query and Listing Optimization ✅
 - Indexed SQLite queries, pagination on all list endpoints.
 
-### E-3 Cache Budget Policy 🔄
-- Thumbnail cache: manual reset via `/api/reset_thumbs`.
-- Transcode cache: TTL-based expiry (hourly cleanup).
-- **Open:** no hard disk budget enforcement; LRU eviction not implemented.
+### E-3 Cache Budget Policy ✅
+- Thumbnail cache: manual reset via `/api/reset_thumbs`; mtime-LRU disk budget (`thumbnails.maxCacheMiB`) enforced after each warmer pass.
+- Transcode cache: TTL-based expiry (hourly cleanup) plus mtime-LRU disk budget (`transcode.maxCacheMiB`).
+- Shared eviction logic in `internal/cache`. `0` = unlimited (default, backwards compatible).
 
 ### E-4 Large Media Warning Threshold ✅
 - Configurable threshold (default 100 MB), exposed in media metadata.
@@ -174,8 +174,8 @@
 - Face crops stored as JPEG in `ai.faceCacheDir`.
 - Results stored in `ai_faces` table.
 - Min face size configurable (`ai.faceMinPixels`, default 40 px).
-- **Open:** `glintr100.onnx` (~260 MB) should be replaced by `w600k_mbf.onnx` (~12 MB) — see ADR-007.
 - SHA256 checksums populated for all three models.
+- Decided: keep `glintr100.onnx`, no swap to `w600k_mbf.onnx` (ADR-007 superseded).
 
 ### I-4 Analysis queue & scheduler ✅
 - `ai_jobs` table; new/changed media enqueued after scan.

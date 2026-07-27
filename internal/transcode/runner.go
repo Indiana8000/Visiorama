@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Indiana8000/visiorama/internal/app"
+	"github.com/Indiana8000/visiorama/internal/cache"
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/util"
@@ -190,5 +191,17 @@ func (r *Runner) runCleanup() {
 	}
 	if len(paths) > 0 {
 		slog.Info("transcode cleanup", "removed", len(paths))
+	}
+
+	cacheDir := r.cfg.Transcode.CacheDir
+	if cacheDir == "" {
+		cacheDir = filepath.Join(filepath.Dir(r.cfg.Thumbnails.CacheDir), "transcodes")
+	}
+	maxBytes := int64(r.cfg.Transcode.MaxCacheMiB) * 1024 * 1024
+	evicted, freed, err := cache.EvictToBudget(cacheDir, maxBytes)
+	if err != nil {
+		slog.Warn("transcode cache budget eviction failed", "err", err)
+	} else if evicted > 0 {
+		slog.Info("transcode cache budget eviction", "removed", evicted, "freedBytes", freed)
 	}
 }

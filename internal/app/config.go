@@ -53,6 +53,9 @@ type TranscodeConfig struct {
 	CacheDir    string `yaml:"cacheDir"`
 	TTLHours    int    `yaml:"ttlHours"`
 	ImageMaxDim int    `yaml:"imageMaxDim"`
+	// MaxCacheMiB caps total transcode cache disk usage. 0 = unlimited (TTL only).
+	// Oldest-accessed files are evicted first once the budget is exceeded.
+	MaxCacheMiB int `yaml:"maxCacheMiB"`
 }
 
 type ServerConfig struct {
@@ -85,10 +88,13 @@ type FilteringConfig struct {
 }
 
 type ThumbnailsConfig struct {
-	CacheDir    string `yaml:"cacheDir"`
-	Sizes       []int  `yaml:"sizes"`
-	AspectRatioW int   `yaml:"aspectRatioW"`
-	AspectRatioH int   `yaml:"aspectRatioH"`
+	CacheDir     string `yaml:"cacheDir"`
+	Sizes        []int  `yaml:"sizes"`
+	AspectRatioW int    `yaml:"aspectRatioW"`
+	AspectRatioH int    `yaml:"aspectRatioH"`
+	// MaxCacheMiB caps total thumbnail cache disk usage. 0 = unlimited.
+	// Oldest-accessed files are evicted first once the budget is exceeded.
+	MaxCacheMiB int `yaml:"maxCacheMiB"`
 }
 
 // ThumbHeight returns the thumbnail height for a given width based on configured aspect ratio.
@@ -120,6 +126,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
 		errs = append(errs, fmt.Sprintf("server.port %d is invalid (must be 1-65535)", c.Server.Port))
+	}
+	if c.Thumbnails.MaxCacheMiB < 0 {
+		errs = append(errs, "thumbnails.maxCacheMiB must be >= 0")
+	}
+	if c.Transcode.MaxCacheMiB < 0 {
+		errs = append(errs, "transcode.maxCacheMiB must be >= 0")
 	}
 	if len(errs) > 0 {
 		return errors.New(strings.Join(errs, "; "))
