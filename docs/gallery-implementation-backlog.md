@@ -179,7 +179,9 @@
 
 ### I-4 Analysis queue & scheduler ✅
 - `ai_jobs` table; new/changed media enqueued after scan.
-- Bounded concurrency (`ai.workers`), retry on transient errors.
+- Bounded concurrency (`ai.workers`).
+- Failed jobs are not automatically retried; they re-enqueue only when the same
+  media is scanned or reanalyzed again (`ON CONFLICT ... WHERE status = 'failed'`).
 - Progress exposed via `/api/ai/status`.
 
 ### I-5 Cluster & enrollment UI ✅

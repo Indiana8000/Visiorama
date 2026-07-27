@@ -58,8 +58,9 @@ Acceptable because inference runs as background post-scan queue, not real-time.
   `libonnxruntime.so` symlink (Alpine ships only the versioned `.so.1`).
 
 ## Implementation Deviations from Plan
-- Fine-grained EfficientNet-B0 classifier (breeds etc.) not implemented — YOLOv8n 80-class
-  output deemed sufficient for initial release.
+- Fine-grained classifier implemented as MobileNetV3-Small (not EfficientNet-B0 as originally
+  planned) — dog/cat/bird breed determined by renormalising softmax over the relevant
+  ImageNet-1000 class subset. See `cmd/visiorama-ai/models.go` and `species_onnx.go`.
 - Face detector is SCRFD-10G (not MTCNN/RetinaFace as originally considered).
 - Embedding model is ArcFace R100 (`glintr100.onnx`, ~260 MB); plan was to switch to
   `w600k_mbf.onnx` (~12 MB) — not yet done (URL unconfirmed).
@@ -72,10 +73,12 @@ Acceptable because inference runs as background post-scan queue, not real-time.
   not a constraint for the target home-lab use case.
 - **CI build:** ✅ `visiorama-ai` built in GitHub Actions (`release.yml`) for linux/amd64
   and linux/arm64 with onnxruntime cross-linking. See ADR-005.
-- **Cover face selection:** cluster cover face is picked from unsorted Go map iteration in
-  `SaveClusterAssignments` → non-deterministic. Should use `MIN(face_id)`.
+- **Cover face selection:** ✅ resolved — cover face is `MIN(face_id)`, sorted before insert
+  in `SaveClusterAssignments`, stable across re-clusterings.
 - **Version check:** not needed — `visiorama-ai` is always deployed together with `visiorama`
   (same install/release flow, see ADR-005), so version drift between the two cannot occur.
+- **Retry on transient errors:** no automatic retry/backoff for failed `ai_jobs` — a failed
+  job only re-enqueues when the same media is scanned or reanalyzed again. See Epic I-4.
 
 ## Rejected Alternatives
 - Python sidecar: extra runtime dependency, complex deployment.

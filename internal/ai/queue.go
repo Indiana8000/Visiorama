@@ -27,7 +27,6 @@ func (sidecarLogWriter) Write(p []byte) (int, error) {
 }
 
 const (
-	maxAttempts    = 3
 	workerInterval = 2 * time.Second // poll interval when queue is empty
 	startupTimeout = 15 * time.Second
 )

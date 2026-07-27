@@ -190,18 +190,6 @@ func (r *AIRepo) Finish(mediaID int64, success bool, errMsg, finishedAt string) 
 	return err
 }
 
-// RequeueFailed resets failed jobs that have fewer than maxAttempts tries.
-func (r *AIRepo) RequeueFailed(maxAttempts int, queuedAt string) (int64, error) {
-	res, err := r.db.Exec(`
-		UPDATE ai_jobs SET status = 'queued', queued_at = ?, error = NULL
-		WHERE status = 'failed' AND attempts < ?`,
-		queuedAt, maxAttempts)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
-}
-
 // FailStale resets running jobs left over from a crash.
 func (r *AIRepo) FailStale(finishedAt string) error {
 	_, err := r.db.Exec(`
