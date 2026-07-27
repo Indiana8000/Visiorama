@@ -10,6 +10,14 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "scan" {
+		if err := runScan(os.Args[2:]); err != nil {
+			slog.Error("scan", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	cfgPath := flag.String("config", "configs/visiorama.yaml", "path to config file")
 	flag.Parse()
 
