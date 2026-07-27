@@ -203,7 +203,7 @@
 - Re-analyze button: queues all media for AI re-analysis.
 - `ai.reanalyzeOnFullScan` config flag (default false).
 - AI cleanup: removes orphaned face crops and DB entries.
-- **Open:** `visiorama-ai` version check / outdated binary warning not implemented.
+- Decided: no version-check/outdated-binary warning needed — `visiorama-ai` always deployed together with `visiorama` (see G-1/G-2).
 - Cover face = min face_id (sorted before insert; stable across re-clusterings).
 
 ---

@@ -74,8 +74,8 @@ Acceptable because inference runs as background post-scan queue, not real-time.
   and linux/arm64 with onnxruntime cross-linking. See ADR-005.
 - **Cover face selection:** cluster cover face is picked from unsorted Go map iteration in
   `SaveClusterAssignments` → non-deterministic. Should use `MIN(face_id)`.
-- **Version check:** no mechanism to warn when `visiorama-ai` binary is outdated relative
-  to the main service.
+- **Version check:** not needed — `visiorama-ai` is always deployed together with `visiorama`
+  (same install/release flow, see ADR-005), so version drift between the two cannot occur.
 
 ## Rejected Alternatives
 - Python sidecar: extra runtime dependency, complex deployment.
