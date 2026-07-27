@@ -28,6 +28,9 @@
 ### A-5 Breadcrumb Navigation ✅
 - Jump to any ancestor level.
 
+### A-6 Reverse Album Lookup ✅
+- `POST /api/albums/by-media-ids` — resolve containing albums for a set of media IDs.
+
 ---
 
 ## Epic B: Media Presentation
@@ -63,6 +66,9 @@
 - Filter by album.
 - Map button shown only when GPS data exists; badge with count.
 - Consistent GPS count between AlbumView and PersonsView.
+- `GET /api/map/clusters`, `GET /api/map/style`, `GET /api/map/proxy/{path...}` —
+  tile/style proxy so the browser never calls openfreemap.org directly.
+- `GET /api/gps-count` — global GPS count independent of album filter.
 
 ### C-2 EXIF Orientation Handling ✅
 - Orientation applied for correct display.
@@ -94,6 +100,14 @@
 - Accessing a deleted album via UI triggers orphan scan automatically.
 - Accessing a deleted media item via UI triggers orphan scan automatically.
 
+### D-6 Rename/Move Detection ❌ (P2)
+- **Open:** a renamed or moved file is handled as delete-old + insert-new on
+  the next scan, which loses the old `media_id`'s AI face/label associations
+  (`ai_faces`/`ai_labels` are keyed by `media_id`, not by file content).
+  Noted as a known gap in ADR-003 "Consequences" but not previously tracked
+  here. A real fix would match orphaned + newly-discovered files by size/hash
+  during scan and preserve `media_id` across the rename.
+
 ---
 
 ## Epic E: Scale Hardening (100k)
@@ -114,6 +128,14 @@
 
 ### E-5 Embedded Index Storage ✅
 - SQLite with migrations.
+
+### E-6 Automated Test Coverage ❌ (P1)
+- **Open:** only `internal/cache` and `internal/mapview` have `_test.go` files.
+  `internal/index`, `internal/index/repositories`, `internal/scan`,
+  `internal/transcode`, `internal/ai`, `internal/convert` — all zero coverage —
+  are exactly the packages doing irreversible deletes (orphan scan), DB writes
+  (AI job persistence), and untrusted-file decoding. A regression in any of
+  them currently has no automated signal before it reaches production.
 
 ---
 
@@ -196,15 +218,21 @@
 - Click person → media grid.
 - Map button shown only when GPS data exists (same badge logic as AlbumView).
 - Rename + delete person.
+- `GET /api/ai/counts` — job status counts for progress badge.
+- `GET /api/ai/crops/{filename}` — serves face crop JPEGs.
+- `DELETE /api/ai/faces/{faceId}/person` — unassign a face from its person.
 
 ### I-7 Lightbox detail integration ✅
 - Persons chips (linked to Persons Gallery) + Labels chips in metadata panel.
 - Per-person ✕ button removes face assignment for this photo.
+- `GET /api/media/{mediaId}/ai` — labels + faces (with person assignment) for one item.
 
 ### I-8 Re-analysis & maintenance ✅
 - Re-analyze button: queues all media for AI re-analysis.
+- `POST /api/ai/reanalyze?albumPath=...` — HTTP trigger (config flag below is scan-time only).
 - `ai.reanalyzeOnFullScan` config flag (default false).
-- AI cleanup: removes orphaned face crops and DB entries.
+- `POST /api/ai/cleanup` — removes orphaned `ai_labels`/`ai_faces`/`ai_jobs` DB rows and
+  their face-crop JPEG files on disk.
 - Decided: no version-check/outdated-binary warning needed — `visiorama-ai` always deployed together with `visiorama` (see G-1/G-2).
 - Cover face = min face_id (sorted before insert; stable across re-clusterings).
 
