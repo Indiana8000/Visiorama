@@ -202,8 +202,10 @@ func (q *QueueRunner) processJob(ctx context.Context, c *Client, job *repositori
 			})
 		}
 	}
+	var saveErr error
 	if err := q.repo.SaveLabels(job.MediaID, labels); err != nil {
 		slog.Warn("ai queue: save labels failed", "mediaId", job.MediaID, "err", err)
+		saveErr = err
 	}
 
 	// Persist faces.
@@ -221,6 +223,12 @@ func (q *QueueRunner) processJob(ctx context.Context, c *Client, job *repositori
 	}
 	if err := q.repo.SaveFaces(job.MediaID, faces); err != nil {
 		slog.Warn("ai queue: save faces failed", "mediaId", job.MediaID, "err", err)
+		saveErr = err
+	}
+
+	if saveErr != nil {
+		q.finishJob(job.MediaID, false, saveErr.Error())
+		return
 	}
 
 	slog.Info("ai queue: analyzed",
