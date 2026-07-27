@@ -181,6 +181,8 @@ func (w *Warmer) warmOne(item *repositories.Media) {
 			// No ffmpeg — skip permanently so we don't retry forever
 			err = nil
 		}
+	default:
+		slog.Warn("thumb warmer: unknown media type, skipping permanently", "path", item.RelativePath, "type", item.Type)
 	}
 
 	if err != nil {

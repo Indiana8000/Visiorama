@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
+	"os"
 )
 
 // AIJobStatus values.
@@ -100,8 +102,27 @@ func (r *AIRepo) EnqueueForAlbum(albumPath, queuedAt string) error {
 	return err
 }
 
-// DeleteOrphanedAIData removes labels, faces and jobs for media that no longer exists.
+// DeleteOrphanedAIData removes labels, faces and jobs for media that no longer exists,
+// and deletes the face crop JPEG files that belonged to the removed ai_faces rows.
 func (r *AIRepo) DeleteOrphanedAIData() (int64, error) {
+	rows, err := r.db.Query(`SELECT crop_path FROM ai_faces WHERE media_id NOT IN (SELECT id FROM media) AND crop_path != ''`)
+	if err != nil {
+		return 0, err
+	}
+	var cropPaths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		cropPaths = append(cropPaths, p)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	rows.Close()
+
 	var total int64
 	for _, tbl := range []string{"ai_labels", "ai_faces", "ai_jobs"} {
 		res, err := r.db.Exec(`DELETE FROM ` + tbl + ` WHERE media_id NOT IN (SELECT id FROM media)`)
@@ -111,6 +132,13 @@ func (r *AIRepo) DeleteOrphanedAIData() (int64, error) {
 		n, _ := res.RowsAffected()
 		total += n
 	}
+
+	for _, p := range cropPaths {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			slog.Warn("ai cleanup: failed to remove orphaned crop file", "path", p, "err", err)
+		}
+	}
+
 	return total, nil
 }
 
@@ -205,6 +233,8 @@ func (r *AIRepo) Counts() (queued, running, success, failed int, err error) {
 			success = n
 		case AIJobFailed:
 			failed = n
+		default:
+			slog.Warn("ai counts: unknown job status", "status", s, "count", n)
 		}
 	}
 	return
