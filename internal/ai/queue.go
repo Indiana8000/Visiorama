@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,6 +12,19 @@ import (
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 )
+
+// sidecarLogWriter forwards visiorama-ai's stderr to slog so a native crash
+// (segfault, OOM) leaves a trace instead of vanishing silently.
+type sidecarLogWriter struct{}
+
+func (sidecarLogWriter) Write(p []byte) (int, error) {
+	for _, line := range strings.Split(strings.TrimRight(string(p), "\n"), "\n") {
+		if line != "" {
+			slog.Warn("ai sidecar stderr", "line", line)
+		}
+	}
+	return len(p), nil
+}
 
 const (
 	maxAttempts    = 3
@@ -265,10 +279,17 @@ func (q *QueueRunner) tryStartSidecar(ctx context.Context) *Client {
 		args = append(args, "--crops", cropsDir)
 	}
 	cmd := exec.CommandContext(ctx, binPath, args...)
+	cmd.Stderr = &sidecarLogWriter{}
 	if err := cmd.Start(); err != nil {
 		slog.Warn("ai queue: sidecar start failed", "err", err)
 		return nil
 	}
+	pid := cmd.Process.Pid
+	go func() {
+		err := cmd.Wait()
+		slog.Error("ai queue: sidecar exited", "pid", pid, "err", err)
+		q.SetClient(nil)
+	}()
 
 	// Wait until socket is reachable.
 	deadline := time.Now().Add(startupTimeout)

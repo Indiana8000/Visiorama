@@ -31,6 +31,7 @@ type Warmer struct {
 	cacheDir      string
 	defaultWidth  int
 	defaultHeight int
+	sem           chan struct{} // shared with foreground thumbnail requests; nil = unbounded
 
 	paused    atomic.Int64 // unix-nano of last Pause() call; 0 = not paused
 	suspended atomic.Bool  // hard suspend — holds until Resume() called
@@ -38,13 +39,17 @@ type Warmer struct {
 	running   atomic.Bool
 }
 
-func NewWarmer(media MediaSource, rootPath, cacheDir string, defaultWidth, defaultHeight int) *Warmer {
+// NewWarmer creates a Warmer. sem, if non-nil, is acquired around each thumbnail
+// generation call and should be shared with the foreground thumbnail handler so
+// background warming and on-demand requests share one concurrency ceiling.
+func NewWarmer(media MediaSource, rootPath, cacheDir string, defaultWidth, defaultHeight int, sem chan struct{}) *Warmer {
 	return &Warmer{
 		media:         media,
 		rootPath:      rootPath,
 		cacheDir:      cacheDir,
 		defaultWidth:  defaultWidth,
 		defaultHeight: defaultHeight,
+		sem:           sem,
 	}
 }
 
@@ -128,41 +133,55 @@ func (w *Warmer) loop(ctx context.Context) {
 			continue
 		}
 
-		w.running.Store(true)
-
-		absPath, err := util.SafeJoin(w.rootPath, item.RelativePath)
-		if err != nil {
-			slog.Warn("thumb warmer: unsafe path", "path", item.RelativePath)
-			// Mark ready to avoid retrying a permanently bad path
-			_ = w.media.SetThumbReady(item.ID, true)
-			continue
-		}
-
-		switch item.Type {
-		case "image":
-			_, err = Generate(absPath, w.cacheDir, w.defaultWidth, w.defaultHeight)
-		case "video":
-			if FFmpegAvailable() {
-				_, err = GenerateVideoPoster(absPath, w.cacheDir, w.defaultWidth, w.defaultHeight)
-			} else {
-				// No ffmpeg — skip permanently so we don't retry forever
-				err = nil
+		if w.sem != nil {
+			select {
+			case w.sem <- struct{}{}:
+			case <-ctx.Done():
+				return
 			}
 		}
-
-		if err != nil {
-			slog.Warn("thumb warmer: generation failed, skipping permanently", "path", item.RelativePath, "err", err)
-		} else {
-			slog.Debug("thumb warmer: generated", "path", item.RelativePath, "width", w.defaultWidth, "height", w.defaultHeight)
-		}
-		// Mark ready regardless of outcome — foreground handler generates on demand
-		// and serves a placeholder on failure, so retrying a permanently broken item
-		// (e.g. HEIC without ffmpeg) would just burn CPU forever.
-		if setErr := w.media.SetThumbReady(item.ID, true); setErr != nil {
-			slog.Warn("thumb warmer: set thumb_ready", "id", item.ID, "err", setErr)
+		w.warmOne(item)
+		if w.sem != nil {
+			<-w.sem
 		}
 
 		sleep(ctx, warmerItemDelay)
+	}
+}
+
+func (w *Warmer) warmOne(item *repositories.Media) {
+	w.running.Store(true)
+
+	absPath, err := util.SafeJoin(w.rootPath, item.RelativePath)
+	if err != nil {
+		slog.Warn("thumb warmer: unsafe path", "path", item.RelativePath)
+		// Mark ready to avoid retrying a permanently bad path
+		_ = w.media.SetThumbReady(item.ID, true)
+		return
+	}
+
+	switch item.Type {
+	case "image":
+		_, err = Generate(absPath, w.cacheDir, w.defaultWidth, w.defaultHeight)
+	case "video":
+		if FFmpegAvailable() {
+			_, err = GenerateVideoPoster(absPath, w.cacheDir, w.defaultWidth, w.defaultHeight)
+		} else {
+			// No ffmpeg — skip permanently so we don't retry forever
+			err = nil
+		}
+	}
+
+	if err != nil {
+		slog.Warn("thumb warmer: generation failed, skipping permanently", "path", item.RelativePath, "err", err)
+	} else {
+		slog.Debug("thumb warmer: generated", "path", item.RelativePath, "width", w.defaultWidth, "height", w.defaultHeight)
+	}
+	// Mark ready regardless of outcome — foreground handler generates on demand
+	// and serves a placeholder on failure, so retrying a permanently broken item
+	// (e.g. HEIC without ffmpeg) would just burn CPU forever.
+	if setErr := w.media.SetThumbReady(item.ID, true); setErr != nil {
+		slog.Warn("thumb warmer: set thumb_ready", "id", item.ID, "err", setErr)
 	}
 }
 

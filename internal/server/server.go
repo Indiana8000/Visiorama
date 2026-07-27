@@ -25,6 +25,11 @@ import (
 	"github.com/Indiana8000/visiorama/internal/util"
 )
 
+// sidecarReserveBytes is RAM held back from the Go heap limit and worker
+// sizing for the visiorama-ai sidecar process (ONNX models + buffers) and
+// ffmpeg/ImageMagick subprocesses, none of which count against GOMEMLIMIT.
+const sidecarReserveBytes = 1024 * 1024 * 1024
+
 func Run(cfg *app.Config) error {
 	observability.SetupLogging()
 	util.RegisterMIMETypes()
@@ -38,7 +43,13 @@ func Run(cfg *app.Config) error {
 		} else {
 			limit = fallback
 			if total := totalPhysicalBytes(); total > 0 {
-				limit = int64(float64(total) * 0.9)
+				limit = int64(total) - sidecarReserveBytes
+				if maxLimit := int64(float64(total) * 0.85); limit > maxLimit {
+					limit = maxLimit
+				}
+				if limit < sidecarReserveBytes {
+					limit = sidecarReserveBytes
+				}
 			}
 			slog.Info("set GOMEMLIMIT", "limit", fmt.Sprintf("%d MiB", limit/(1024*1024)))
 		}
@@ -79,7 +90,11 @@ func Run(cfg *app.Config) error {
 	}
 	defaultHeight := cfg.Thumbnails.ThumbHeight(defaultWidth)
 	mediaRepo := repositories.NewMediaRepo(store.DB())
-	warmer := thumbs.NewWarmer(mediaRepo, cfg.Library.RootPath, cfg.Thumbnails.CacheDir, defaultWidth, defaultHeight)
+	// thumbSem is shared by the background warmer and foreground thumbnail
+	// requests so both compete for the same MaxWorkers concurrency ceiling
+	// instead of each running unbounded on top of the other.
+	thumbSem := make(chan struct{}, cfg.Scan.MaxWorkers)
+	warmer := thumbs.NewWarmer(mediaRepo, cfg.Library.RootPath, cfg.Thumbnails.CacheDir, defaultWidth, defaultHeight, thumbSem)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -156,7 +171,7 @@ func Run(cfg *app.Config) error {
 		slog.Info("ai queue runner started")
 	}
 
-	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache, aiClient, aiQueue)
+	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache, aiClient, aiQueue, thumbSem)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
@@ -190,9 +205,13 @@ func Run(cfg *app.Config) error {
 func resolveWorkers(maxCfg int) int {
 	const ramPerWorker = 512 * 1024 * 1024
 
-	workers := runtime.NumCPU() +1
+	workers := runtime.NumCPU() + 1
 	if total := totalPhysicalBytes(); total > 0 {
-		byRAM := int(total / ramPerWorker)
+		var available uint64
+		if total > sidecarReserveBytes {
+			available = total - sidecarReserveBytes
+		}
+		byRAM := int(available / ramPerWorker)
 		if byRAM < workers {
 			workers = byRAM
 		}

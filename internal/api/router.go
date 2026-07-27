@@ -1,7 +1,9 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
+	"runtime/debug"
 
 	"github.com/Indiana8000/visiorama/internal/ai"
 	"github.com/Indiana8000/visiorama/internal/app"
@@ -12,7 +14,7 @@ import (
 	"github.com/Indiana8000/visiorama/internal/transcode"
 )
 
-func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRunner *transcode.Runner, imgCache *convert.Cache, aiClient *ai.Client, aiQueue *ai.QueueRunner) http.Handler {
+func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRunner *transcode.Runner, imgCache *convert.Cache, aiClient *ai.Client, aiQueue *ai.QueueRunner, thumbSem chan struct{}) http.Handler {
 	mux := http.NewServeMux()
 	runner := scan.NewRunner(cfg, store)
 	runner.SetWarmer(warmer)
@@ -26,7 +28,6 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	mux.HandleFunc("POST /api/albums/by-media-ids", ah.albumsByMediaIDs)
 	mux.HandleFunc("GET /api/albums/{albumId}", ah.getByID)
 
-	thumbSem := make(chan struct{}, cfg.Scan.MaxWorkers)
 	mh := &mediaHandler{cfg: cfg, store: store, warmer: warmer, thumbSem: thumbSem, runner: runner}
 	mux.HandleFunc("GET /api/media/{mediaId}/metadata", mh.getMetadata)
 	mux.HandleFunc("GET /api/media/{mediaId}/thumbnail", mh.getThumbnail)
@@ -81,5 +82,20 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	// SPA fallback — serves embedded Vue dist for all non-API paths
 	mux.Handle("/", newSPAHandler())
 
-	return mux
+	return recoverMiddleware(mux)
+}
+
+// recoverMiddleware stops a handler panic from crashing the whole process.
+// A native crash inside the AI sidecar can't be caught this way (it's a
+// separate OS process), but a bug in a Go handler no longer takes the server down.
+func recoverMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				slog.Error("panic recovered", "err", rec, "path", r.URL.Path, "stack", string(debug.Stack()))
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
