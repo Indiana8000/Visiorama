@@ -2,7 +2,13 @@ package repositories
 
 import (
 	"database/sql"
+	"log/slog"
+	"time"
 )
+
+// scanJobRetention bounds how long finished scan_jobs/scan_errors rows are
+// kept; without this both tables grow forever since nothing else prunes them.
+const scanJobRetention = 90 * 24 * time.Hour
 
 type ScanJob struct {
 	ID             string
@@ -34,6 +40,30 @@ func (r *ScanRepo) Create(job *ScanJob) error {
 		job.ID, job.Mode, job.Status, job.StartedAt, job.FinishedAt,
 		job.ScannedFiles, job.IndexedFiles, job.SkippedFiles,
 		job.ErrorCount, boolToInt(job.FallbackToFull))
+	if err != nil {
+		return err
+	}
+	if pruneErr := r.PruneOlderThan(time.Now().UTC().Add(-scanJobRetention)); pruneErr != nil {
+		slog.Warn("scan_jobs: prune old rows failed", "err", pruneErr)
+	}
+	return nil
+}
+
+// PruneOlderThan deletes finished scan_jobs (and their scan_errors) whose
+// finished_at is before cutoff. Queued/running jobs are never pruned.
+func (r *ScanRepo) PruneOlderThan(cutoff time.Time) error {
+	cutoffStr := cutoff.Format(time.RFC3339)
+	if _, err := r.db.Exec(`
+		DELETE FROM scan_errors WHERE scan_id IN (
+			SELECT id FROM scan_jobs
+			WHERE status IN ('success','failed') AND finished_at IS NOT NULL AND finished_at < ?
+		)`, cutoffStr); err != nil {
+		return err
+	}
+	_, err := r.db.Exec(`
+		DELETE FROM scan_jobs
+		WHERE status IN ('success','failed') AND finished_at IS NOT NULL AND finished_at < ?`,
+		cutoffStr)
 	return err
 }
 
