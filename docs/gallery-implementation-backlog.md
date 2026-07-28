@@ -99,6 +99,15 @@
 - Deleted album directories removed from DB on orphan scan.
 - Accessing a deleted album via UI triggers orphan scan automatically.
 - Accessing a deleted media item via UI triggers orphan scan automatically.
+- Orphaned `ai_labels`/`ai_faces`/`ai_jobs` rows and face-crop JPEGs cleaned up
+  automatically after every scan run via the HTTP/UI path (`scan.Runner`).
+- Orphaned thumbnail/poster cache files deleted alongside their `media` row
+  on all three scan modes (quick/full/orphan).
+- **Known gap:** `visiorama scan --mode ...` (CLI) calls the scanners directly,
+  bypassing `scan.Runner` — so a cron job using the CLI instead of the UI/API
+  still leaves AI rows and crop files behind. Only the CLI-vs-Runner AI-cleanup
+  gap remains; thumbnail-cache cleanup happens inside the scanners themselves
+  and is unaffected.
 
 ### D-6 Rename/Move Detection ❌ (P2)
 - **Open:** a renamed or moved file is handled as delete-old + insert-new on
@@ -107,6 +116,21 @@
   Noted as a known gap in ADR-003 "Consequences" but not previously tracked
   here. A real fix would match orphaned + newly-discovered files by size/hash
   during scan and preserve `media_id` across the rename.
+
+### D-7 `/api/reset_thumbs` uses GET ❌ (P2)
+- **Open:** `GET /api/reset_thumbs` (`router.go`) deletes the entire thumbnail
+  cache as a side effect of a plain GET request — vulnerable to accidental
+  triggering by crawlers, link-prefetch, or browser preview/history features.
+  Should be `POST` or `DELETE`.
+
+### D-8 Transcode cache not cleaned on media delete ❌ (P2)
+- **Open:** deleting a `media` row (any scan mode) does not remove its
+  transcode cache file/`transcode_jobs` row. Only cleaned up later by the
+  existing TTL-based `cleanupLoop` (`internal/transcode/runner.go`, default
+  48h), so a deleted photo/video's transcoded copy lingers on disk for up to
+  that long. Same class of fix as the thumbnail-cache orphan cleanup already
+  wired into the scanners — call transcode cleanup-by-media-id at the same
+  delete sites (`scanner_orphan.go`, `scanner_quick.go`, `scanner_full.go`).
 
 ---
 

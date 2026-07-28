@@ -7,6 +7,7 @@ import (
 
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index"
+	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/scan"
 )
 
@@ -70,5 +71,16 @@ func runScan(args []string) error {
 	if err != nil {
 		return fmt.Errorf("%s scan: %w", effectiveMode, err)
 	}
+
+	// Mirrors the post-scan cleanup in scan.Runner (HTTP/UI path) — without this
+	// the CLI path leaves ai_labels/ai_faces/ai_jobs rows and crop files behind
+	// for media deleted by this scan.
+	aiRepo := repositories.NewAIRepo(store.DB())
+	if n, cleanupErr := aiRepo.DeleteOrphanedAIData(); cleanupErr != nil {
+		fmt.Printf("warning: orphaned AI data cleanup failed: %v\n", cleanupErr)
+	} else if n > 0 {
+		fmt.Printf("cleaned up %d orphaned AI rows\n", n)
+	}
+
 	return nil
 }
