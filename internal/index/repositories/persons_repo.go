@@ -215,14 +215,51 @@ func (r *PersonsRepo) NameCluster(personID int64, name string) error {
 
 // RemoveFaceFromCluster deletes an unconfirmed face assignment.
 func (r *PersonsRepo) RemoveFaceFromCluster(faceID int64) error {
-	_, err := r.db.Exec(`
-		DELETE FROM ai_face_assignments WHERE face_id = ? AND confirmed = 0`, faceID)
-	return err
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`
+		DELETE FROM ai_face_assignments WHERE face_id = ? AND confirmed = 0`, faceID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := clearStaleCoverFace(tx, faceID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
 }
 
 // UnassignFace removes a face from its person (confirmed or not).
 func (r *PersonsRepo) UnassignFace(faceID int64) error {
-	_, err := r.db.Exec(`DELETE FROM ai_face_assignments WHERE face_id = ?`, faceID)
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM ai_face_assignments WHERE face_id = ?`, faceID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := clearStaleCoverFace(tx, faceID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
+// clearStaleCoverFace repoints any ai_persons.cover_face_id that references a
+// face no longer assigned to that person (faceID's assignment was just
+// deleted) to another remaining assigned face (lowest face_id), or NULL if
+// none remain. Must run inside the same transaction as the assignment delete.
+func clearStaleCoverFace(tx *sql.Tx, faceID int64) error {
+	_, err := tx.Exec(`
+		UPDATE ai_persons
+		SET cover_face_id = (
+			SELECT a.face_id FROM ai_face_assignments a
+			WHERE a.person_id = ai_persons.id
+			ORDER BY a.face_id LIMIT 1)
+		WHERE cover_face_id = ?`, faceID)
 	return err
 }
 
