@@ -278,7 +278,7 @@ onUnmounted(() => {
 .map-view {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - 85px);
   width: 100%;
 }
 
