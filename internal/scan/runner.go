@@ -122,6 +122,17 @@ func (r *Runner) TriggerAsync(scanID, mode, albumPath string) error {
 		if err != nil {
 			status = "failed"
 			slog.Error("scan failed", "scanId", scanID, "err", err)
+		} else {
+			// Scans delete media rows for files that disappeared from disk, which
+			// would otherwise leave their ai_labels/ai_faces/ai_jobs rows and face
+			// crop JPEGs behind indefinitely (only reachable before via the manual
+			// POST /api/ai/cleanup endpoint).
+			aiRepo := repositories.NewAIRepo(r.store.DB())
+			if n, cleanupErr := aiRepo.DeleteOrphanedAIData(); cleanupErr != nil {
+				slog.Warn("scan: orphaned AI data cleanup failed", "scanId", scanID, "err", cleanupErr)
+			} else if n > 0 {
+				slog.Info("scan: cleaned up orphaned AI data", "scanId", scanID, "rows", n)
+			}
 		}
 
 		finishedAt := time.Now().UTC().Format(time.RFC3339)

@@ -124,6 +124,23 @@ func (r *AIRepo) DeleteOrphanedAIData() (int64, error) {
 	rows.Close()
 
 	var total int64
+
+	// ai_persons.cover_face_id and ai_face_assignments.face_id reference ai_faces,
+	// so both must be cleared before the ai_faces rows themselves are deleted.
+	if _, err := r.db.Exec(`
+		UPDATE ai_persons SET cover_face_id = NULL
+		WHERE cover_face_id IN (SELECT id FROM ai_faces WHERE media_id NOT IN (SELECT id FROM media))`); err != nil {
+		return total, err
+	}
+	if res, err := r.db.Exec(`
+		DELETE FROM ai_face_assignments
+		WHERE face_id IN (SELECT id FROM ai_faces WHERE media_id NOT IN (SELECT id FROM media))`); err != nil {
+		return total, err
+	} else {
+		n, _ := res.RowsAffected()
+		total += n
+	}
+
 	for _, tbl := range []string{"ai_labels", "ai_faces", "ai_jobs"} {
 		res, err := r.db.Exec(`DELETE FROM ` + tbl + ` WHERE media_id NOT IN (SELECT id FROM media)`)
 		if err != nil {
