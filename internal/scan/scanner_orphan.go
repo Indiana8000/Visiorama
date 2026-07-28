@@ -9,6 +9,7 @@ import (
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
+	"github.com/Indiana8000/visiorama/internal/thumbs"
 )
 
 // OrphanScanner checks every media path in the DB against disk and removes
@@ -56,6 +57,8 @@ func (s *OrphanScanner) Run(ctx context.Context, scanID string) (*Stats, error) 
 			slog.Warn("orphan scan: delete failed", "path", p, "err", delErr)
 			continue
 		}
+		thumbs.DeleteCached(s.cfg.Thumbnails.CacheDir, absP, s.cfg.Thumbnails.Sizes,
+			s.cfg.Thumbnails.AspectRatioW, s.cfg.Thumbnails.AspectRatioH)
 
 		stats.Indexed.Add(1)
 		slog.Info("orphan scan: removed deleted media", "path", p)
