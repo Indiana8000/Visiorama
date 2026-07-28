@@ -9,6 +9,8 @@ import (
 	"github.com/Indiana8000/visiorama/internal/server"
 )
 
+var version = "dev"
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "scan" {
 		if err := runScan(os.Args[2:]); err != nil {
@@ -31,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := server.Run(cfg); err != nil {
+	if err := server.Run(cfg, version); err != nil {
 		slog.Error("run", "err", err)
 		os.Exit(1)
 	}

@@ -14,7 +14,7 @@ import (
 	"github.com/Indiana8000/visiorama/internal/transcode"
 )
 
-func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRunner *transcode.Runner, imgCache *convert.Cache, aiClient *ai.Client, aiQueue *ai.QueueRunner, thumbSem chan struct{}) http.Handler {
+func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRunner *transcode.Runner, imgCache *convert.Cache, aiClient *ai.Client, aiQueue *ai.QueueRunner, thumbSem chan struct{}, version string) http.Handler {
 	mux := http.NewServeMux()
 	runner := scan.NewRunner(cfg, store)
 	runner.SetWarmer(warmer)
@@ -48,7 +48,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	mux.HandleFunc("GET /api/transcode-jobs/{jobId}", tch.getStatus)
 	mux.HandleFunc("GET /api/media/{mediaId}/transcode/stream", tch.stream)
 
-	hh := &healthHandler{cfg: cfg, store: store, warmer: warmer}
+	hh := &healthHandler{cfg: cfg, store: store, warmer: warmer, version: version}
 	mux.HandleFunc("GET /api/health", hh.health)
 
 	adh := &adminHandler{cfg: cfg, store: store}

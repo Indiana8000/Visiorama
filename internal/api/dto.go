@@ -98,6 +98,7 @@ type HealthResponse struct {
 	DatabaseAvailable  bool   `json:"databaseAvailable"`
 	UptimeSeconds      int64  `json:"uptimeSeconds"`
 	ThumbWarmer        ThumbWarmerStatus `json:"thumbWarmer"`
+	Version            string `json:"version,omitempty"`
 }
 
 type ThumbWarmerStatus struct {

@@ -39,6 +39,7 @@ const reanalyzeQueued = ref(false)
 const elapsedSec = ref(0)
 let elapsedTimer = null
 let scanStartMs = 0
+const version = ref('')
 
 const status = computed(() => job.value?.status ?? 'idle')
 const isQueued = computed(() => status.value === 'queued')
@@ -68,7 +69,7 @@ const statusMsg = computed(() => {
   if (errorMsg.value) return errorMsg.value
   if (reanalyzing.value) return 'Queuing…'
   if (reanalyzeQueued.value) return '✓ Re-analyze queued'
-  if (!job.value) return null
+  if (!job.value) return version.value || null
   const mode = job.value.mode === 'full' ? 'full' : 'quick'
   const t = elapsedSec.value > 0 ? ` (${fmtElapsed(elapsedSec.value)})` : ''
   if (isRunning.value) {
@@ -85,7 +86,7 @@ const statusMsg = computed(() => {
     return `✓ ${job.value.indexedFiles} new, ${job.value.scannedFiles} scanned${fb}`
   }
   if (isFailed.value) return `✗ Errors: ${job.value.errorCount}`
-  return null
+  return version.value || null
 })
 
 function stopPolling() {
@@ -116,6 +117,12 @@ async function poll(scanId) {
 }
 
 onMounted(async () => {
+  try {
+    const health = await api.getHealth()
+    version.value = health.version || ''
+  } catch {
+    // ignore — version stays blank
+  }
   try {
     const active = await api.getActiveScan()
     job.value = active

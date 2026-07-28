@@ -18,9 +18,10 @@ type warmerStatus interface {
 }
 
 type healthHandler struct {
-	cfg    *app.Config
-	store  *index.Store
-	warmer warmerStatus
+	cfg     *app.Config
+	store   *index.Store
+	warmer  warmerStatus
+	version string
 }
 
 func (h *healthHandler) health(w http.ResponseWriter, r *http.Request) {
@@ -48,5 +49,6 @@ func (h *healthHandler) health(w http.ResponseWriter, r *http.Request) {
 		DatabaseAvailable:  dbOK,
 		UptimeSeconds:      int64(time.Since(startTime).Seconds()),
 		ThumbWarmer:        ws,
+		Version:            h.version,
 	})
 }

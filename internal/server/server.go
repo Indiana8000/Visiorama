@@ -30,7 +30,7 @@ import (
 // ffmpeg/ImageMagick subprocesses, none of which count against GOMEMLIMIT.
 const sidecarReserveBytes = 1024 * 1024 * 1024
 
-func Run(cfg *app.Config) error {
+func Run(cfg *app.Config, version string) error {
 	observability.SetupLogging()
 	util.RegisterMIMETypes()
 
@@ -172,7 +172,7 @@ func Run(cfg *app.Config) error {
 		slog.Info("ai queue runner started")
 	}
 
-	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache, aiClient, aiQueue, thumbSem)
+	handler := api.NewRouter(cfg, store, warmer, tcRunner, imgCache, aiClient, aiQueue, thumbSem, version)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
