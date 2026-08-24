@@ -120,3 +120,15 @@ jobs:
             dist/libonnxruntime.so.*
             install.sh
           generate_release_notes: true
+
+      - name: Prune old releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          KEEP=5
+          gh release list --repo "${{ github.repository }}" --limit 100 --json tagName \
+            --jq '.[].tagName' > all_tags.txt
+          tail -n +$((KEEP + 1)) all_tags.txt | while read -r TAG; do
+            echo "Deleting old release: $TAG"
+            gh release delete "$TAG" --repo "${{ github.repository }}" -y
+          done
