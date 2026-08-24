@@ -85,8 +85,13 @@ install_systemd() {
 [Unit]
 Description=Visiorama AI inference sidecar
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=30
 User=${SERVICE_USER}
 Environment=ORT_LIB_PATH=/usr/lib/libonnxruntime.so
 ExecStart=${INSTALL_DIR}/visiorama-ai \
@@ -109,8 +114,13 @@ EOF
 [Unit]
 Description=Visiorama photo gallery
 After=network.target${after_ai}
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=30
 User=${SERVICE_USER}
 ExecStart=${INSTALL_DIR}/visiorama -config ${CONFIG_DIR}/visiorama.yaml
 Restart=on-failure
@@ -143,8 +153,10 @@ description="Visiorama AI inference sidecar"
 command="${INSTALL_DIR}/visiorama-ai"
 command_args="-socket /run/visiorama/visiorama-ai.sock -models ${DATA_DIR}/models -crops ${DATA_DIR}/crops"
 command_user="${SERVICE_USER}"
+supervisor="supervise-daemon"
 pidfile="/run/visiorama-ai.pid"
-command_background=true
+respawn_max=5
+respawn_period=60
 output_log="/var/log/visiorama-ai.log"
 error_log="/var/log/visiorama-ai.log"
 export ORT_LIB_PATH=/usr/lib/libonnxruntime.so
@@ -172,8 +184,10 @@ description="Visiorama photo gallery"
 command="${INSTALL_DIR}/visiorama"
 command_args="-config ${CONFIG_DIR}/visiorama.yaml"
 command_user="${SERVICE_USER}"
+supervisor="supervise-daemon"
 pidfile="/run/visiorama.pid"
-command_background=true
+respawn_max=5
+respawn_period=60
 output_log="/var/log/visiorama.log"
 error_log="/var/log/visiorama.log"
 

@@ -193,6 +193,8 @@ func Run(cfg *app.Config, version string) error {
 		}
 	}()
 
+	util.RunWatchdog(ctx)
+
 	<-ctx.Done()
 	slog.Info("shutting down")
 

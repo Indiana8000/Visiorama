@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Indiana8000/visiorama/internal/ai"
+	"github.com/Indiana8000/visiorama/internal/util"
 )
 
 var version = "dev"
@@ -76,15 +77,16 @@ func main() {
 	}
 	defer os.Remove(*socketPath)
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	util.RunWatchdog(ctx)
+
 	httpSrv := &http.Server{
 		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 10 * time.Minute,
 		IdleTimeout:  120 * time.Second,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		slog.Info("visiorama-ai listening", "socket", *socketPath, "workers", *workers, "version", version)
