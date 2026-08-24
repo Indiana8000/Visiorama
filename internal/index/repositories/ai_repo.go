@@ -207,12 +207,17 @@ func (r *AIRepo) Finish(mediaID int64, success bool, errMsg, finishedAt string) 
 	return err
 }
 
-// FailStale resets running jobs left over from a crash.
-func (r *AIRepo) FailStale(finishedAt string) error {
-	_, err := r.db.Exec(`
-		UPDATE ai_jobs SET status = 'failed', finished_at = ?, error = 'interrupted by restart'
-		WHERE status = 'running'`, finishedAt)
-	return err
+// RequeueInterrupted resets jobs left running by a crash back to queued so
+// the worker picks them up again on the next poll, instead of losing them
+// as permanently failed. Returns the number of jobs requeued.
+func (r *AIRepo) RequeueInterrupted(queuedAt string) (int64, error) {
+	res, err := r.db.Exec(`
+		UPDATE ai_jobs SET status = 'queued', queued_at = ?, finished_at = NULL, error = NULL
+		WHERE status = 'running'`, queuedAt)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // Counts returns (queued, running, success, failed) job counts.

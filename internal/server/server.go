@@ -80,8 +80,10 @@ func Run(cfg *app.Config, version string) error {
 		slog.Warn("failed to clean up stale transcode jobs", "err", err)
 	}
 	aiRepo := repositories.NewAIRepo(store.DB())
-	if err := aiRepo.FailStale(now); err != nil {
-		slog.Warn("failed to clean up stale ai jobs", "err", err)
+	if n, err := aiRepo.RequeueInterrupted(now); err != nil {
+		slog.Warn("failed to requeue interrupted ai jobs", "err", err)
+	} else if n > 0 {
+		slog.Info("ai: requeued jobs interrupted by previous crash", "count", n)
 	}
 
 	defaultWidth := 320
