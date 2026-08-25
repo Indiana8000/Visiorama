@@ -20,6 +20,14 @@ func main() {
 		return
 	}
 
+	if len(os.Args) > 1 && os.Args[1] == "ai-scan" {
+		if err := runAIScan(os.Args[2:]); err != nil {
+			slog.Error("ai-scan", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	cfgPath := flag.String("config", "configs/visiorama.yaml", "path to config file")
 	flag.Parse()
 

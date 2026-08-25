@@ -352,6 +352,24 @@ func (r *MediaRepo) ListIDsIndexedSince(_ string) ([]int64, error) {
 	return ids, rows.Err()
 }
 
+// ListAllIDs returns the IDs of every media item in the library.
+func (r *MediaRepo) ListAllIDs() ([]int64, error) {
+	rows, err := r.db.Query(`SELECT id FROM media`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func collectMedia(rows *sql.Rows) ([]Media, error) {
 	var out []Media
 	for rows.Next() {
