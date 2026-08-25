@@ -207,6 +207,16 @@ func (r *AIRepo) Finish(mediaID int64, success bool, errMsg, finishedAt string) 
 	return err
 }
 
+// Requeue puts a single running job back to queued after a transient failure
+// (e.g. sidecar unreachable mid-restart), preserving its attempts count so
+// the caller's retry cap still applies.
+func (r *AIRepo) Requeue(mediaID int64, queuedAt string) error {
+	_, err := r.db.Exec(`
+		UPDATE ai_jobs SET status = 'queued', queued_at = ?, finished_at = NULL, error = NULL
+		WHERE media_id = ?`, queuedAt, mediaID)
+	return err
+}
+
 // RequeueInterrupted resets jobs left running by a crash back to queued so
 // the worker picks them up again on the next poll, instead of losing them
 // as permanently failed. Returns the number of jobs requeued.
@@ -422,10 +432,10 @@ type MediaAILabel struct {
 
 // MediaAIFace is a face + assigned person for one media item.
 type MediaAIFace struct {
-	FaceID    int64
-	CropPath  string
-	BBoxJSON  string
-	PersonID  *int64
+	FaceID     int64
+	CropPath   string
+	BBoxJSON   string
+	PersonID   *int64
 	PersonName *string
 }
 

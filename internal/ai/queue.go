@@ -2,7 +2,9 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net"
 	"os/exec"
 	"strings"
 	"sync"
@@ -27,8 +29,9 @@ func (sidecarLogWriter) Write(p []byte) (int, error) {
 }
 
 const (
-	workerInterval = 2 * time.Second // poll interval when queue is empty
-	startupTimeout = 15 * time.Second
+	workerInterval       = 2 * time.Second // poll interval when queue is empty
+	startupTimeout       = 15 * time.Second
+	maxTransientAttempts = 5 // requeue cap for sidecar-connection errors before giving up
 )
 
 // QueueStats holds live counters exposed via /api/ai/status.
@@ -176,6 +179,17 @@ func (q *QueueRunner) processJob(ctx context.Context, c *Client, job *repositori
 	})
 	if err != nil {
 		slog.Warn("ai queue: analyze failed", "mediaId", job.MediaID, "attempt", job.Attempts, "err", err)
+		if isSidecarConnErr(err) && job.Attempts < maxTransientAttempts {
+			// Sidecar died between reconnect-probe and this request (e.g. mid-crash-restart).
+			// Requeue instead of failing permanently, and drop the stale client so the
+			// next worker iteration re-probes/respawns the sidecar before claiming again.
+			q.SetClient(nil)
+			if rqErr := q.repo.Requeue(job.MediaID, time.Now().UTC().Format(time.RFC3339)); rqErr != nil {
+				slog.Warn("ai queue: requeue after sidecar error failed", "mediaId", job.MediaID, "err", rqErr)
+				q.finishJob(job.MediaID, false, err.Error())
+			}
+			return
+		}
 		q.finishJob(job.MediaID, false, err.Error())
 		return
 	}
@@ -237,6 +251,14 @@ func (q *QueueRunner) processJob(ctx context.Context, c *Client, job *repositori
 	)
 	q.finishJob(job.MediaID, true, "")
 	q.stats.Done.Add(1)
+}
+
+// isSidecarConnErr reports whether err comes from a dead/unreachable socket
+// (e.g. "connection refused" while the sidecar is mid-restart) rather than a
+// genuine analysis failure on the sidecar side.
+func isSidecarConnErr(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr)
 }
 
 func (q *QueueRunner) finishJob(mediaID int64, success bool, errMsg string) {
