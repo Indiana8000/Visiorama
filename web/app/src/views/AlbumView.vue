@@ -12,8 +12,8 @@
             &middot; {{ store.currentAlbum.childAlbums.length.toLocaleString() }} album{{ store.currentAlbum.childAlbums.length !== 1 ? 's' : '' }}
           </template>
         </span>
-        <h1 v-if="store.currentAlbum.album.relativePath !== ''" class="album-meta__title">
-          {{ store.currentAlbum.album.name }}
+        <h1 class="album-meta__title">
+          {{ store.currentAlbum.album.relativePath !== '' ? store.currentAlbum.album.name : 'Visiorama' }}
         </h1>
         <div class="meta-buttons">
           <button v-if="gpsCount > 0" class="btn-map" @click="openMap">

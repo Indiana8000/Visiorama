@@ -150,6 +150,18 @@ func (r *AIRepo) DeleteOrphanedAIData() (int64, error) {
 		total += n
 	}
 
+	// Persons left with no faces at all (all their media was deleted) are pure
+	// leftovers — remove them too, otherwise they linger forever in the
+	// pending-clusters count shown on the Persons nav badge.
+	if res, err := r.db.Exec(`
+		DELETE FROM ai_persons
+		WHERE id NOT IN (SELECT DISTINCT person_id FROM ai_face_assignments)`); err != nil {
+		return total, err
+	} else {
+		n, _ := res.RowsAffected()
+		total += n
+	}
+
 	for _, p := range cropPaths {
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			slog.Warn("ai cleanup: failed to remove orphaned crop file", "path", p, "err", err)
