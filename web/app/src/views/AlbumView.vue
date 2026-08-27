@@ -12,6 +12,9 @@
             &middot; {{ store.currentAlbum.childAlbums.length.toLocaleString() }} album{{ store.currentAlbum.childAlbums.length !== 1 ? 's' : '' }}
           </template>
         </span>
+        <h1 v-if="store.currentAlbum.album.relativePath !== ''" class="album-meta__title">
+          {{ store.currentAlbum.album.name }}
+        </h1>
         <div class="meta-buttons">
           <button v-if="gpsCount > 0" class="btn-map" @click="openMap">
             🗺 Map<span class="persons-badge">{{ gpsCount }}</span>
@@ -142,13 +145,23 @@ watch(() => store.currentAlbum, (album) => {
 .album-view { padding-bottom: 40px; }
 
 .album-meta {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   font-size: 13px;
   color: var(--muted);
   margin-bottom: 20px;
 }
+
+.album-meta__title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-word;
+}
+
 
 .section { margin-bottom: 32px; }
 .section-title {
@@ -222,7 +235,7 @@ watch(() => store.currentAlbum, (album) => {
   text-align: center;
 }
 
-.meta-buttons { display: flex; gap: 8px; align-items: center; }
+.meta-buttons { display: flex; gap: 8px; align-items: center; justify-self: end; }
 
 .btn-map {
   background: #313244;
