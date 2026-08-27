@@ -52,7 +52,7 @@ func NewRouter(cfg *app.Config, store *index.Store, warmer *thumbs.Warmer, tcRun
 	mux.HandleFunc("GET /api/health", hh.health)
 
 	adh := &adminHandler{cfg: cfg, store: store}
-	mux.HandleFunc("GET /api/reset_thumbs", adh.resetThumbs)
+	mux.HandleFunc("DELETE /api/reset_thumbs", adh.resetThumbs)
 
 	aih := &aiHandler{cfg: cfg, store: store, client: aiClient, queue: aiQueue}
 	mux.HandleFunc("GET /api/ai/status", aih.status)

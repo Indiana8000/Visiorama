@@ -426,7 +426,7 @@ paths:
   # ─── Admin ────────────────────────────────────────────────────────────────
 
   /api/reset_thumbs:
-    get:
+    delete:
       tags: [Admin]
       summary: Delete thumbnail cache and reset thumb_ready flags
       description: Deletes all files in thumbnails.cacheDir and resets thumb_ready=0 for all media items. Background warmer will regenerate thumbnails.

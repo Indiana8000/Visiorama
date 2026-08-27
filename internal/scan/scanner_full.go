@@ -16,6 +16,7 @@ import (
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/thumbs"
+	"github.com/Indiana8000/visiorama/internal/transcode"
 )
 
 type Stats struct {
@@ -345,13 +346,15 @@ func (s *FullScanner) RunWithProgress(ctx context.Context, scanID string, albumP
 			slog.Debug("full scan: orphan media candidates", "count", len(orphanPaths))
 			for _, p := range orphanPaths {
 				slog.Debug("full scan: deleting orphan media", "path", p)
-				if err := mediaRepo.DeleteByPath(p); err != nil {
+				mediaID, err := mediaRepo.DeleteByPath(p)
+				if err != nil {
 					slog.Warn("delete orphan media", "path", p, "err", err)
 					continue
 				}
 				absP := filepath.Join(root, filepath.FromSlash(p))
 				thumbs.DeleteCached(s.cfg.Thumbnails.CacheDir, absP, s.cfg.Thumbnails.Sizes,
 					s.cfg.Thumbnails.AspectRatioW, s.cfg.Thumbnails.AspectRatioH)
+				transcode.CleanupMedia(db, mediaID)
 			}
 		}
 

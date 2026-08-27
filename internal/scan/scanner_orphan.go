@@ -10,6 +10,7 @@ import (
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/thumbs"
+	"github.com/Indiana8000/visiorama/internal/transcode"
 )
 
 // OrphanScanner checks every media path in the DB against disk and removes
@@ -51,7 +52,8 @@ func (s *OrphanScanner) Run(ctx context.Context, scanID string) (*Stats, error) 
 			continue
 		}
 
-		if delErr := mediaRepo.DeleteByPath(p); delErr != nil {
+		mediaID, delErr := mediaRepo.DeleteByPath(p)
+		if delErr != nil {
 			stats.ErrCount.Add(1)
 			_ = scanRepo.AddError(scanID, p, delErr.Error())
 			slog.Warn("orphan scan: delete failed", "path", p, "err", delErr)
@@ -59,6 +61,7 @@ func (s *OrphanScanner) Run(ctx context.Context, scanID string) (*Stats, error) 
 		}
 		thumbs.DeleteCached(s.cfg.Thumbnails.CacheDir, absP, s.cfg.Thumbnails.Sizes,
 			s.cfg.Thumbnails.AspectRatioW, s.cfg.Thumbnails.AspectRatioH)
+		transcode.CleanupMedia(db, mediaID)
 
 		stats.Indexed.Add(1)
 		slog.Info("orphan scan: removed deleted media", "path", p)

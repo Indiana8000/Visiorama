@@ -117,20 +117,16 @@
   here. A real fix would match orphaned + newly-discovered files by size/hash
   during scan and preserve `media_id` across the rename.
 
-### D-7 `/api/reset_thumbs` uses GET ❌ (P2)
-- **Open:** `GET /api/reset_thumbs` (`router.go`) deletes the entire thumbnail
-  cache as a side effect of a plain GET request — vulnerable to accidental
-  triggering by crawlers, link-prefetch, or browser preview/history features.
-  Should be `POST` or `DELETE`.
+### D-7 `/api/reset_thumbs` uses GET ✅
+- Endpoint is now `DELETE /api/reset_thumbs` (`router.go`, `openapi.v1.yaml`),
+  no longer triggerable by a plain GET from crawlers/prefetch/history.
 
-### D-8 Transcode cache not cleaned on media delete ❌ (P2)
-- **Open:** deleting a `media` row (any scan mode) does not remove its
-  transcode cache file/`transcode_jobs` row. Only cleaned up later by the
-  existing TTL-based `cleanupLoop` (`internal/transcode/runner.go`, default
-  48h), so a deleted photo/video's transcoded copy lingers on disk for up to
-  that long. Same class of fix as the thumbnail-cache orphan cleanup already
-  wired into the scanners — call transcode cleanup-by-media-id at the same
-  delete sites (`scanner_orphan.go`, `scanner_quick.go`, `scanner_full.go`).
+### D-8 Transcode cache not cleaned on media delete ✅
+- `MediaRepo.DeleteByPath` now returns the deleted row's ID, and all three
+  scan delete sites (`scanner_orphan.go`, `scanner_quick.go`,
+  `scanner_full.go`) call `transcode.CleanupMedia(db, mediaID)` right after
+  `thumbs.DeleteCached`, removing the `transcode_jobs` row and its cache file
+  immediately instead of waiting on the TTL `cleanupLoop`.
 
 ---
 

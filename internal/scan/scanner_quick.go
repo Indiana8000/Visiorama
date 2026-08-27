@@ -15,6 +15,7 @@ import (
 	"github.com/Indiana8000/visiorama/internal/index"
 	"github.com/Indiana8000/visiorama/internal/index/repositories"
 	"github.com/Indiana8000/visiorama/internal/thumbs"
+	"github.com/Indiana8000/visiorama/internal/transcode"
 )
 
 // QuickScanner uses mtime deltas to find changed folders and re-scans only
@@ -322,12 +323,14 @@ func (s *QuickScanner) RunWithProgress(ctx context.Context, scanID string, album
 			absP := filepath.Join(root, filepath.FromSlash(p))
 			if _, statErr := os.Stat(absP); os.IsNotExist(statErr) {
 				slog.Debug("quick scan: orphan media found", "path", p)
-				if err := mediaRepo.DeleteByPath(p); err != nil {
+				mediaID, err := mediaRepo.DeleteByPath(p)
+				if err != nil {
 					stats.ErrCount.Add(1)
 					slog.Warn("quick scan: delete orphan media", "path", p, "err", err)
 				} else {
 					thumbs.DeleteCached(s.cfg.Thumbnails.CacheDir, absP, s.cfg.Thumbnails.Sizes,
 						s.cfg.Thumbnails.AspectRatioW, s.cfg.Thumbnails.AspectRatioH)
+					transcode.CleanupMedia(db, mediaID)
 					slog.Info("quick scan: orphan deleted", "path", p)
 				}
 			}

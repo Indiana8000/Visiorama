@@ -2,6 +2,7 @@ package transcode
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -156,6 +157,25 @@ func (r *Runner) process(jobID string) {
 		slog.Warn("transcode: failed to persist success status", "jobID", jobID, "err", err)
 	}
 	slog.Info("transcode complete", "jobID", jobID, "out", outPath)
+}
+
+// CleanupMedia removes any transcode job rows and cache files for mediaID.
+// Called by scanners at the same delete sites as the thumbnail-cache orphan
+// cleanup, so a deleted media's transcoded copy doesn't linger until the
+// next TTL sweep (runCleanup). Takes *sql.DB directly rather than a *Runner
+// since scanners run outside the request/worker lifecycle that owns one.
+func CleanupMedia(db *sql.DB, mediaID int64) {
+	repo := repositories.NewTranscodeRepo(db)
+	paths, err := repo.DeleteByMediaID(mediaID)
+	if err != nil {
+		slog.Warn("transcode cleanup: delete job rows failed", "mediaID", mediaID, "err", err)
+		return
+	}
+	for _, p := range paths {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			slog.Warn("transcode cleanup: remove failed", "path", p, "err", err)
+		}
+	}
 }
 
 func (r *Runner) cleanupLoop(ctx context.Context) {

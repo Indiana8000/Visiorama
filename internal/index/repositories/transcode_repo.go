@@ -80,6 +80,29 @@ func (r *TranscodeRepo) DeleteExpired(before string) ([]string, error) {
 	return paths, err
 }
 
+// DeleteByMediaID removes all jobs for mediaID and returns their output paths.
+func (r *TranscodeRepo) DeleteByMediaID(mediaID int64) ([]string, error) {
+	rows, err := r.db.Query(`
+		SELECT output_path FROM transcode_jobs
+		WHERE media_id = ? AND output_path IS NOT NULL`, mediaID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err == nil && p != "" {
+			paths = append(paths, p)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	_, err = r.db.Exec(`DELETE FROM transcode_jobs WHERE media_id = ?`, mediaID)
+	return paths, err
+}
+
 func scanTranscodeJob(row *sql.Row) (*TranscodeJob, error) {
 	j := &TranscodeJob{}
 	err := row.Scan(&j.ID, &j.MediaID, &j.Status, &j.OutputPath, &j.Error, &j.CreatedAt, &j.FinishedAt)

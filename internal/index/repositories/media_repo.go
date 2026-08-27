@@ -132,9 +132,19 @@ func (r *MediaRepo) Upsert(m *Media) (int64, error) {
 	return id, nil
 }
 
-func (r *MediaRepo) DeleteByPath(relativePath string) error {
-	_, err := r.db.Exec(`DELETE FROM media WHERE relative_path = ?`, relativePath)
-	return err
+// DeleteByPath removes the media row at relativePath and returns its ID
+// (0 if no row matched) so callers can clean up ID-keyed caches (transcode).
+func (r *MediaRepo) DeleteByPath(relativePath string) (int64, error) {
+	var id int64
+	err := r.db.QueryRow(`SELECT id FROM media WHERE relative_path = ?`, relativePath).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	_, err = r.db.Exec(`DELETE FROM media WHERE id = ?`, id)
+	return id, err
 }
 
 // ListPathsByAlbum returns all relative_paths for media in a given album.
