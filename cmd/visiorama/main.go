@@ -7,6 +7,7 @@ import (
 
 	"github.com/Indiana8000/visiorama/internal/app"
 	"github.com/Indiana8000/visiorama/internal/server"
+	"github.com/Indiana8000/visiorama/internal/util"
 )
 
 var version = "dev"
@@ -40,6 +41,9 @@ func main() {
 		slog.Error("invalid config", "err", err)
 		os.Exit(1)
 	}
+
+	// Cleanup old temporary files from previous runs
+	util.CleanupTempFiles("imgconv-*.jpg", "magick-*")
 
 	if err := server.Run(cfg, version); err != nil {
 		slog.Error("run", "err", err)
